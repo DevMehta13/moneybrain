@@ -50,4 +50,17 @@ blind-swaps intent. Instead:
 
 ## Result
 
-(Fill in after execution.)
+- `./gradlew test` completed with zero failing or erroring tests in the generated unit-test
+  reports. `./gradlew assembleDebug` completed and produced the debug APK; no compilation
+  errors were emitted. The APK installed successfully over the existing Pixel 9 app data.
+- Smoke pass: Overview, Timeline, Buckets, Recurring, and Settings all opened without a crash;
+  opening a transaction editor also succeeded. Overview showed the SAFE TO SPEND hero, bills,
+  stat strip, and recent rows (there were no non-zero bucket bars in the installed data).
+  Timeline showed day headers with signed totals, tags, and the red ADD TRANSACTION bar above
+  the navigation. Buckets showed the money map and split-an-amount control; no pending split or
+  populated envelope cards existed in this device data. Settings showed the inverted PRIVATE BY
+  DESIGN card with CAPTURE and MONEY groups.
+- Dark mode was toggled via the system setting: the editor rendered dark ink with light text and
+  the warm orange-red accent (#FF563C appearance). The setting was restored to light mode after
+  the check. Text rendered as a geometric grotesque consistent with Archivo, not the default
+  system fallback. No visual deviation from `design.dc.html` was evident in the inspected states.
