@@ -39,8 +39,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Icon
-import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -157,7 +155,7 @@ fun MoneyBrainScreen() {
         floatingActionButton = {
             if (route == timelineRoute) {
                 FloatingActionButton(onClick = { navController.navigate(addRoute) }) {
-                    Icon(painterResource(android.R.drawable.ic_input_add), "Add transaction")
+                    Text("+")
                 }
             }
         },
@@ -235,24 +233,24 @@ private fun BottomBar(navController: NavHostController, route: String) {
         NavigationBarItem(
             selected = route == overviewRoute,
             onClick = { navController.navigateTopLevel(overviewRoute) },
-            icon = { Icon(painterResource(android.R.drawable.ic_menu_view), null) },
+            icon = { Text("⌂") },
             label = { Text("Overview") },
         )
         NavigationBarItem(
             selected = route == timelineRoute,
             onClick = { navController.navigateTopLevel(timelineRoute) },
-            icon = { Icon(painterResource(android.R.drawable.ic_menu_agenda), null) },
+            icon = { Text("≡") },
             label = { Text("Timeline") },
         )
         NavigationBarItem(
             selected = route == bucketsRoute,
-            onClick = { navController.navigateTopLevel(bucketsRoute) }, icon = { Icon(painterResource(android.R.drawable.ic_menu_manage), null) }, label = { Text("Buckets") },
+            onClick = { navController.navigateTopLevel(bucketsRoute) }, icon = { Text("▣") }, label = { Text("Buckets") },
         )
-        NavigationBarItem(selected = route == recurringRoute, onClick = { navController.navigateTopLevel(recurringRoute) }, icon = { Icon(painterResource(android.R.drawable.ic_popup_sync), null) }, label = { Text("Recurring") })
+        NavigationBarItem(selected = route == recurringRoute, onClick = { navController.navigateTopLevel(recurringRoute) }, icon = { Text("↻") }, label = { Text("Recurring") })
         NavigationBarItem(
             selected = route == settingsRoute,
             onClick = { navController.navigateTopLevel(settingsRoute) },
-            icon = { Icon(painterResource(android.R.drawable.ic_menu_preferences), null) },
+            icon = { Text("⚙") },
             label = { Text("Settings") },
         )
     }
