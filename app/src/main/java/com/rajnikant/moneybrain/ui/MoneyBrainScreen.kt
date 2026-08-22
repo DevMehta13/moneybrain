@@ -218,9 +218,18 @@ private fun BottomBar(navController: NavHostController, route: String) {
 private fun BucketsScreen(viewModel: BucketsViewModel) {
     val statuses by viewModel.status.collectAsState(initial = emptyList())
     val plans by viewModel.plans.collectAsState(initial = emptyList())
+    val salaries by viewModel.salaryCandidates.collectAsState(initial = emptyList())
     var name by remember { mutableStateOf("") }
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Buckets", style = MaterialTheme.typography.headlineSmall) }
+        salaries.forEach { salary ->
+            item {
+                Card { Column(Modifier.padding(16.dp)) {
+                    Text("Salary detected: ${Money.formatPaise(salary.amountPaise)} — split into buckets?")
+                    Button(onClick = { viewModel.splitSalary(salary.id, salary.amountPaise, salary.occurredAt) }) { Text("Split now") }
+                } }
+            }
+        }
         item { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("New bucket") }); Button(onClick = { viewModel.addBucket(name); name = "" }, enabled = name.isNotBlank()) { Text("Add bucket") } }
         items(statuses, key = { it.bucket.id }) { status ->
             val remaining = BucketMath.remaining(status.allocated, status.spent, 0)

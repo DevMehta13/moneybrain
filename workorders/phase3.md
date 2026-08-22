@@ -125,7 +125,13 @@ that the migrated schema lacks makes Room reject the database at open.
 
 ## Questions
 
-(Write questions here and push if blocked. Do not guess.)
+- **Blocked by architect-owned test/API mismatch:** after commit `c4d720e` removed
+  `BucketSplitterCompat.kt` (as instructed), the unmodified architect-owned
+  `BucketsTest.kt` still calls `BucketSplitter.splitSalary(sourceId, amount, plan, now)` at
+  lines 184–188. The architect-owned splitter exposes only the explicit-month overload, so
+  `./gradlew test` fails to compile. I did not re-add the prohibited month-defaulting overload
+  and did not modify the test. Please update the test to provide an explicit month or provide
+  an architect-approved compatibility API that cannot default to today's month.
 
 ## Architect note during interim review (2026-08-22)
 
@@ -151,3 +157,7 @@ Do not re-add convenience overloads to architect-owned APIs.
   unchanged.
 - Remaining before Phase 3 completion: salary preview/split controls, full plan editing,
   Settings category-to-bucket mapping, and transaction-level bucket overrides.
+- Continued after interim review: added the salary card's Split now path using the salary
+  transaction's `occurredAt` in the device timezone to derive the explicit allocation month;
+  it never defaults a late split to today's month. Further validation is blocked by the
+  architect-owned test/API mismatch recorded above.
