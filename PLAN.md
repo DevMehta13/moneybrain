@@ -391,7 +391,7 @@ From ARCHITECTURE.md, restated because every phase must obey them:
 
 | Phase | Name | Size | Status | Gate passed on |
 |---|---|---|---|---|
-| 0 | Dev environment & skeleton | S | not started | — |
+| 0 | Dev environment & skeleton | S | ✅ done | 2026-08-22 |
 | 1 | Manual entry + timeline | M | not started | — |
 | 2 | SMS capture + activity log | L | not started | — |
 | 3 | Buckets + salary split | M | not started | — |

@@ -1,6 +1,6 @@
 # Work order: Phase 0 — dev environment & project skeleton
 
-Status: OPEN
+Status: DONE — gate passed 2026-08-22 (architect review + owner manual checks)
 Phase reference: PLAN.md → Phase 0
 
 ## Goal
