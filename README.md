@@ -1,15 +1,12 @@
 # Money Brain
 
-I built this to make my own life easy. Keeping track of my money was something I was genuinely
-suffering with — payments scattered across bank SMS, no idea what was safe to spend, who owed me
-what, or which bill was about to hit. So I made an app that does all of that thinking for me.
-Now I can relax and take a chill pill. 💊
+I built this to make my own life easy.
 
-A private, offline-first personal finance app for Android. It reads bank SMS (Bank of Baroda + HDFC),
-turns them into transactions automatically, and gives every rupee a place to live — with a one-tap
+A private offline first personal finance app for Android. It reads bank SMS
+turns them into transactions automatically, and gives every rupee a place to live with a one tap
 undo for everything it does on its own.
 
-Built for one person, one phone. No cloud, no account, no analytics, no lock-in.
+Built for one person, one phone. No cloud, no account, no analytics, no lock in.
 
 ## What it does
 
@@ -52,13 +49,13 @@ everything lives in one SQLite file on the phone.
 
 ## How it was built
 
-This repo is a two-AI-agent collaboration, run by one human owner:
+This repo is a two AI agent collaboration:
 
-- **Claude (architect)** designed everything, wrote the correctness-critical code
-  (money math, parsing, splitting, undo, balances — all JVM-unit-tested against store
+- **Claude (architect)** designed everything, wrote the correctness critical code
+  (money math, parsing, splitting, undo, balances all JVM unit tested against store
   interfaces) and reviewed every pushed line.
 - **Codex (implementer)** built the app around it: Room adapters, ViewModels, screens,
-  builds, and on-device verification.
+  builds, and on device verification.
 - They never spoke directly. All coordination happened through this repository:
   [`AGENTS.md`](AGENTS.md) holds the implementer's standing orders, and every task travelled
   as a work order in [`workorders/`](workorders/), with results and review findings written back
@@ -80,6 +77,6 @@ Settings → SMS capture; capture templates cover Bank of Baroda and HDFC format
 
 ## A note on privacy
 
-This is a personal-finance app that deliberately knows nothing about you unless you put it there,
-and shares it with no one. All test data in this repository is fictional; masked SMS samples use
+This is a personal finance app that deliberately knows nothing about you unless you put it there,
+and shares it with no one. All test data in this repository is fictional, masked SMS samples use
 X-ed digits. There is no backend to trust because there is no backend.
