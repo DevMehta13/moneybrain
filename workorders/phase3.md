@@ -200,3 +200,11 @@ Do not re-add convenience overloads to architect-owned APIs.
   bucket-or-None picker for every category. The transaction editor now persists a bucket
   override and exposes From category plus each bucket as choices. Tests and debug build pass;
   the APK was installed over the existing phone app without uninstalling.
+- Fix round 2 complete: spent is now limited to the status month in the device timezone, and
+  salary candidates are current-month only, globally exclude already-split source transactions,
+  and use `SalaryDetector`. Split outcomes now reach the Buckets snackbar. The salary card shows
+  its `BucketMath.split` preview (including unallocated), plan entries can be removed and moved
+  with ordered sort values, over-100% plans warn, blocked bucket deletion explains that
+  allocations exist, and negative remaining uses the Material error color. `./gradlew test` and
+  the debug build pass. The debug APK was installed over the existing app with `adb install -r`
+  successfully; no architect-owned files were changed.

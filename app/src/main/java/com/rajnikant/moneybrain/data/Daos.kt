@@ -76,12 +76,16 @@ interface CategoryDao {
 @Dao interface BucketDao {
     @Query("SELECT * FROM buckets ORDER BY sortOrder, id") fun observeAll(): Flow<List<BucketEntity>>
     @Insert suspend fun insert(bucket: BucketEntity): Long
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM buckets") suspend fun maxSortOrder(): Int
     @Query("DELETE FROM buckets WHERE id = :id") suspend fun deleteById(id: Long): Int
     @Query("SELECT EXISTS(SELECT 1 FROM bucket_allocations WHERE bucketId = :id)") suspend fun hasAllocations(id: Long): Boolean
 }
 @Dao interface BucketPlanDao {
     @Query("SELECT * FROM bucket_plan ORDER BY sortOrder, id") fun observeAll(): Flow<List<BucketPlanEntity>>
     @Insert suspend fun insert(entry: BucketPlanEntity): Long
+    @Update suspend fun update(entry: BucketPlanEntity)
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM bucket_plan") suspend fun maxSortOrder(): Int
+    @Query("DELETE FROM bucket_plan WHERE id = :id") suspend fun deleteById(id: Long): Int
     @Query("DELETE FROM bucket_plan WHERE bucketId = :bucketId") suspend fun deleteForBucket(bucketId: Long): Int
 }
 @Dao interface BucketAllocationDao {
@@ -89,6 +93,7 @@ interface CategoryDao {
     @Query("SELECT EXISTS(SELECT 1 FROM bucket_allocations WHERE sourceTransactionId = :id)") suspend fun existsForSource(id: Long): Boolean
     @Query("DELETE FROM bucket_allocations WHERE id IN (:ids)") suspend fun deleteIds(ids: List<Long>): Int
     @Query("SELECT * FROM bucket_allocations WHERE month = :month") fun observeMonth(month: String): Flow<List<BucketAllocationEntity>>
+    @Query("SELECT DISTINCT sourceTransactionId FROM bucket_allocations WHERE sourceTransactionId IS NOT NULL") fun observeSourceTransactionIds(): Flow<List<Long>>
 }
 
 @Dao

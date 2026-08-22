@@ -73,7 +73,9 @@ import com.rajnikant.moneybrain.money.Money
 import com.rajnikant.moneybrain.viewmodel.AccountsViewModel
 import com.rajnikant.moneybrain.viewmodel.ActivityViewModel
 import com.rajnikant.moneybrain.viewmodel.BucketsViewModel
+import com.rajnikant.moneybrain.viewmodel.BucketMessage
 import com.rajnikant.moneybrain.buckets.BucketMath
+import com.rajnikant.moneybrain.buckets.PlanEntry
 import com.rajnikant.moneybrain.viewmodel.MoneyBrainViewModelFactory
 import com.rajnikant.moneybrain.viewmodel.TimelineItem
 import com.rajnikant.moneybrain.viewmodel.TimelineEntry
@@ -222,22 +224,69 @@ private fun BucketsScreen(viewModel: BucketsViewModel) {
     val statuses by viewModel.status.collectAsState(initial = emptyList())
     val plans by viewModel.plans.collectAsState(initial = emptyList())
     val salaries by viewModel.salaryCandidates.collectAsState(initial = emptyList())
+    val snackbarHostState = remember { SnackbarHostState() }
     var name by remember { mutableStateOf("") }
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("Buckets", style = MaterialTheme.typography.headlineSmall) }
-        salaries.forEach { salary ->
-            item {
-                Card { Column(Modifier.padding(16.dp)) {
-                    Text("Salary detected: ${Money.formatPaise(salary.amountPaise)} — split into buckets?")
-                    Button(onClick = { viewModel.splitSalary(salary.id, salary.amountPaise, salary.occurredAt) }) { Text("Split now") }
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { message ->
+            snackbarHostState.showSnackbar((message as BucketMessage.Text).value)
+        }
+    }
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(innerPadding), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { Text("Buckets", style = MaterialTheme.typography.headlineSmall) }
+            salaries.forEach { salary ->
+                item {
+                    val plan = plans.map { PlanEntry(it.bucketId, it.kind, it.value) }
+                    val preview = BucketMath.split(salary.amountPaise, plan)
+                    Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Salary detected: ${Money.formatPaise(salary.amountPaise)} — split into buckets?")
+                        preview.lines.forEach { line ->
+                            Text("${statuses.firstOrNull { it.bucket.id == line.bucketId }?.bucket?.name ?: "Deleted bucket"}: ${Money.formatPaise(line.amountPaise)}")
+                        }
+                        Text("Unallocated: ${Money.formatPaise(preview.unallocatedPaise)}")
+                        Button(onClick = { viewModel.splitSalary(salary.id, salary.amountPaise, salary.occurredAt) }) { Text("Split now") }
+                    } }
+                }
+            }
+            item { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("New bucket") }); Button(onClick = { viewModel.addBucket(name); name = "" }, enabled = name.isNotBlank()) { Text("Add bucket") } }
+            val planEntries = plans.map { PlanEntry(it.bucketId, it.kind, it.value) }
+            item { Text("Plan totals: ${BucketMath.totalPercentBp(planEntries) / 100}% · Fixed ${Money.formatPaise(BucketMath.totalFixedPaise(planEntries))}") }
+            if (BucketMath.totalPercentBp(planEntries) > 10_000) {
+                item { Text("Plan percentages exceed 100%; entries will be capped in order.", color = MaterialTheme.colorScheme.error) }
+            }
+            items(statuses, key = { it.bucket.id }) { status ->
+                val remaining = BucketMath.remaining(status.allocated, status.spent, 0)
+                val bucketPlans = plans.filter { it.bucketId == status.bucket.id }
+                Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(status.bucket.name, fontWeight = FontWeight.Medium)
+                        TextButton(onClick = { viewModel.deleteBucket(status.bucket.id) }) { Text("Remove") }
+                    }
+                    Text("Allocated ${Money.formatPaise(status.allocated)} · Spent ${Money.formatPaise(status.spent)} · Remaining ${Money.formatPaise(remaining)}", color = if (remaining < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                    bucketPlans.forEachIndexed { index, entry ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(if (entry.kind == "PERCENT") "${entry.value / 100}%" else Money.formatPaise(entry.value))
+                            Row { TextButton(onClick = { viewModel.movePlan(plans, entry.id, -1) }, enabled = plans.indexOf(entry) > 0) { Text("Up") }; TextButton(onClick = { viewModel.movePlan(plans, entry.id, 1) }, enabled = plans.indexOf(entry) < plans.lastIndex) { Text("Down") }; TextButton(onClick = { viewModel.deletePlan(entry.id) }) { Text("Remove") } }
+                        }
+                    }
+                    PlanEntryAdder(onPercent = { viewModel.addPercent(status.bucket.id, it) }, onFixed = { viewModel.addFixed(status.bucket.id, it) })
                 } }
             }
         }
-        item { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("New bucket") }); Button(onClick = { viewModel.addBucket(name); name = "" }, enabled = name.isNotBlank()) { Text("Add bucket") } }
-        items(statuses, key = { it.bucket.id }) { status ->
-            val remaining = BucketMath.remaining(status.allocated, status.spent, 0)
-            Card { Column(Modifier.padding(16.dp)) { Text(status.bucket.name, fontWeight = FontWeight.Medium); Text("Allocated ${Money.formatPaise(status.allocated)} · Spent ${Money.formatPaise(status.spent)} · Remaining ${Money.formatPaise(remaining)}", color = if (remaining < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface); Text("Plan: ${plans.filter { it.bucketId == status.bucket.id }.joinToString { if (it.kind == "PERCENT") "${it.value / 100}%" else Money.formatPaise(it.value) }}") } }
-        }
+    }
+}
+
+@Composable
+private fun PlanEntryAdder(onPercent: (Long) -> Unit, onFixed: (String) -> Unit) {
+    var percent by remember { mutableStateOf("") }
+    var fixed by remember { mutableStateOf("") }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(value = percent, onValueChange = { percent = it }, modifier = Modifier.weight(1f), label = { Text("Percent") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+        Button(onClick = { percent.toLongOrNull()?.takeIf { it >= 0 }?.let { onPercent(it); percent = "" } }) { Text("Add %") }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(value = fixed, onValueChange = { fixed = it }, modifier = Modifier.weight(1f), label = { Text("Fixed ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+        Button(onClick = { if (Money.parseToPaise(fixed) != null) { onFixed(fixed); fixed = "" } }) { Text("Add fixed") }
     }
 }
 
