@@ -394,7 +394,7 @@ From ARCHITECTURE.md, restated because every phase must obey them:
 | 0 | Dev environment & skeleton | S | ✅ done | 2026-08-22 |
 | 1 | Manual entry + timeline | M | ✅ done | 2026-08-22 |
 | 2 | SMS capture + activity log | L | ✅ done | 2026-08-22 |
-| 3 | Buckets + salary split | M | not started | — |
+| 3 | Buckets + salary split | M | ✅ done | 2026-08-22 |
 | 4 | Recurring | M | not started | — |
 | 5 | People & trips | M | not started | — |
 | 6 | Overview screen | S | not started | — |

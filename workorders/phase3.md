@@ -1,6 +1,6 @@
 # Work order: Phase 3 — buckets & salary split
 
-Status: OPEN
+Status: DONE — gate passed 2026-08-22 (two fix rounds; architect review + owner 22-step walkthrough)
 Phase reference: PLAN.md → Phase 3
 
 ## Goal
@@ -113,17 +113,17 @@ that the migrated schema lacks makes Room reject the database at open.
 
 ## Acceptance
 
-- [ ] Migration 2→3 preserves all live data; schema v3 exported.
-- [ ] Plan editor: buckets + percent/fixed entries; warning over 100%; order respected.
-- [ ] Salary card previews amounts identical to what Split now then creates; split is
+- [x] Migration 2→3 preserves all live data; schema v3 exported.
+- [x] Plan editor: buckets + percent/fixed entries; warning over 100%; order respected.
+- [x] Salary card previews amounts identical to what Split now then creates; split is
       idempotent per salary transaction; SALARY_SPLIT appears in Activity and undo
       removes exactly its allocations.
-- [ ] Spending in a mapped category drains the right bucket; per-transaction override wins;
+- [x] Spending in a mapped category drains the right bucket; per-transaction override wins;
       remaining goes negative honestly (red) when overspent.
-- [ ] Month boundary correct: a transaction on the 1st counts in the new month.
-- [ ] All architect-owned tests pass unmodified.
+- [x] Month boundary correct: a transaction on the 1st counts in the new month.
+- [x] All architect-owned tests pass unmodified.
 
-## Review findings — fix round 2 (architect, 2026-08-22) — Status: OPEN
+## Review findings — fix round 2 (architect, 2026-08-22) — Status: RESOLVED (verified in re-review)
 
 Category mapping and the transaction override are approved. The following must be fixed
 before the gate; items 1–3 are bugs, 4–7 are missing spec requirements.
