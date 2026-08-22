@@ -35,10 +35,10 @@ Rajnikant's laptop can build this repo into an APK, and the app runs on his phys
 
 ## Acceptance (from PLAN.md Phase 0 gate)
 
-- [ ] Money Brain icon opens on the physical phone.
-- [ ] A code change reached the phone via rebuild+reinstall (task 6).
-- [ ] Repo builds from a clean `git clone` on this machine.
-- [ ] App survives a phone restart.
+- [x] Money Brain icon opens on the physical phone.
+- [x] A code change reached the phone via rebuild+reinstall (task 6).
+- [x] Repo builds from a clean `git clone` on this machine.
+- [x] App survives a phone restart.
 
 ## Questions
 
@@ -55,32 +55,15 @@ Completed the laptop-side skeleton and build pipeline:
 - Created the Kotlin/Jetpack Compose Android project in the repository root:
   `com.rajnikant.moneybrain`, minSdk 26, target/compile SDK 37. It has a launcher
   icon and exactly the requested centered placeholder content: “Money Brain” and
-  “Phase 0 — skeleton v2”. No dependencies were added beyond the Compose template set.
+  “Phase 0 — skeleton v3”. No dependencies were added beyond the Compose template set.
 - A clean local build (`./gradlew clean assembleDebug`) succeeded. I then rebuilt after
   changing the placeholder from “Phase 0 — skeleton” to “Phase 0 — skeleton v2”; the
   final `./gradlew assembleDebug` also succeeded. A fresh clone of the pushed repository
   also completed `./gradlew assembleDebug` successfully.
-- Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (11,566,149 bytes).
-
-Phone installation and restart acceptance checks are currently blocked on USB-debugging
-authorisation. macOS detects a connected Google Pixel 9, but `adb devices -l` still shows
-no authorised device, including after restarting the adb service. The phone must be
-unlocked, USB debugging enabled, and the “Allow USB debugging?” RSA prompt accepted before
-the v2 update can be installed and confirmed. Android version is not available until then.
-
-Rajnikant’s next steps (plain USB route):
-
-1. On the phone, open **Settings**, search for **Build number**, and tap it seven times.
-   Enter the phone PIN if asked. This turns on Developer Options.
-2. Go back to Settings, open **Developer Options**, and turn on **USB debugging**.
-3. Connect the phone to this laptop with a USB cable. If the phone asks what USB should
-   do, choose **File transfer**. Accept the “Allow USB debugging?” prompt on the phone.
-4. From this repository, run:
-   `adb install app/build/outputs/apk/debug/app-debug.apk`
-5. Open **Money Brain**, then install the next rebuilt APK with the same command. Android
-   should report success and replace the installed app without an uninstall. Restart the
-   phone and confirm Money Brain still opens.
-
-If USB does not work, copy the APK above to the phone, open it in the phone’s Files app,
-allow that app to **install unknown apps** when Android asks, and install it. Repeat after
-the next rebuild to test the replacement update.
+- Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (11,573,062 bytes).
+- Phone verification completed on a Google Pixel 9 running Android 17. The initial v2 APK
+  installed and launched successfully. I changed the placeholder to “Phase 0 — skeleton
+  v3”, rebuilt, and installed with `adb install -r`; Android reported success, confirming
+  it replaced the existing app without uninstalling. The updated app then launched.
+- Restart verification completed: the phone rebooted, reconnected through adb after boot,
+  retained the installed package, and Money Brain launched successfully again.

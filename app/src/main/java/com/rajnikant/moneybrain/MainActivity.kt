@@ -36,7 +36,7 @@ private fun PlaceholderScreen() {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(text = "Money Brain", style = MaterialTheme.typography.headlineMedium)
-        Text(text = "Phase 0 — skeleton v2")
+        Text(text = "Phase 0 — skeleton v3")
     }
 }
 
