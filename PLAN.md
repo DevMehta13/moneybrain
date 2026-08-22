@@ -439,7 +439,7 @@ From ARCHITECTURE.md, restated because every phase must obey them:
 | 8 | Cloud mirror + sync | L | ⏸ parked | — |
 | 9 | ChatGPT integration | M | ⏸ parked | — |
 | 10 | Export | S | ⏸ on hold | — |
-| 11 | Account balances + envelope buckets | M | in progress | — |
+| 11 | Account balances + envelope buckets | M | ✅ done | 2026-08-23 |
 
 ## Change log
 

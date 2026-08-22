@@ -1,6 +1,6 @@
 # Work order: Phase 11 — account balances + envelope buckets
 
-Status: FIX ROUND 1 — see "Fix round 1" section below (review of abaf4d7)
+Status: DONE — fix round 1 verified (cd5f198); owner manual checks passed 2026-08-23
 Phase reference: PLAN.md → Phase 11 (added 2026-08-23 by owner decision)
 
 ## What changed and why (read first)
