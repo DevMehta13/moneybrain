@@ -1,6 +1,7 @@
 # Work order: Phase 7, Stage A — notification access + sample harvest
 
-Status: OPEN — kickoff only AFTER phase 6 closes (one phase at a time)
+Status: CANCELLED (2026-08-23) — phase 7 declined by the owner. Do NOT execute any task below.
+The v6 migration slot this file planned was never built; phase 11 (workorders/phase11.md) reuses v6.
 Phase reference: PLAN.md → Phase 7 (first of two stages; parsing + merge is Stage B)
 
 ## Goal

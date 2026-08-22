@@ -10,12 +10,13 @@ import com.rajnikant.moneybrain.capture.UndoStore
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class BucketMathTest {
 
     @Test fun `percent and fixed split with truncation leftover`() {
-        // Salary ₹80,757.00; 40% savings, ₹25,000 fixed essentials, 20% fun.
+        // Amount ₹80,757.00; 40% savings, ₹25,000 fixed essentials, 20% fun.
         val result = BucketMath.split(
             8_075_700,
             listOf(
@@ -64,7 +65,7 @@ class BucketMathTest {
         assertEquals(0L, result.unallocatedPaise)
     }
 
-    @Test fun `zero salary splits to zeros`() {
+    @Test fun `zero amount splits to zeros`() {
         val result = BucketMath.split(0, listOf(PlanEntry(1, PlanKinds.PERCENT, 5_000)))
         assertEquals(0L, result.lines[0].amountPaise)
         assertEquals(0L, result.unallocatedPaise)
@@ -107,22 +108,39 @@ class SalaryDetectorTest {
 // ---------- splitter + undo ----------
 
 private class FakeBucketStore : BucketStore, UndoStore {
-    val allocations = mutableMapOf<Long, Triple<Long, String, Long>>() // id -> (bucketId, month, paise)
-    val sources = mutableMapOf<Long, Long>()                           // allocationId -> sourceTransactionId
+    data class Entry(
+        val bucketId: Long,
+        val amountPaise: Long,
+        val kind: String,
+        val sourceTransactionId: Long?,
+        val counterpartEntryId: Long?,
+    )
+
+    val entries = mutableMapOf<Long, Entry>()
     val actions = mutableMapOf<Long, ActionRecord>()
     private var nextId = 1L
 
-    override suspend fun insertAllocation(
-        bucketId: Long, month: String, amountPaise: Long, sourceTransactionId: Long?, createdAt: Long,
+    override suspend fun insertEntry(
+        bucketId: Long, amountPaise: Long, kind: String,
+        sourceTransactionId: Long?, note: String?, createdAt: Long,
     ): Long {
         val id = nextId++
-        allocations[id] = Triple(bucketId, month, amountPaise)
-        if (sourceTransactionId != null) sources[id] = sourceTransactionId
+        entries[id] = Entry(bucketId, amountPaise, kind, sourceTransactionId, counterpartEntryId = null)
         return id
     }
 
-    override suspend fun allocationsExistForSource(transactionId: Long): Boolean =
-        sources.containsValue(transactionId)
+    override suspend fun insertMovePair(
+        fromBucketId: Long, toBucketId: Long, amountPaise: Long, createdAt: Long,
+    ): Pair<Long, Long> {
+        val fromId = nextId++
+        val toId = nextId++
+        entries[fromId] = Entry(fromBucketId, -amountPaise, EntryKinds.MOVE, null, counterpartEntryId = toId)
+        entries[toId] = Entry(toBucketId, amountPaise, EntryKinds.MOVE, null, counterpartEntryId = fromId)
+        return fromId to toId
+    }
+
+    override suspend fun entriesExistForSource(transactionId: Long): Boolean =
+        entries.values.any { it.sourceTransactionId == transactionId }
 
     override suspend fun recordAction(
         kind: String, targetType: String, targetId: Long,
@@ -132,13 +150,14 @@ private class FakeBucketStore : BucketStore, UndoStore {
         actions[id] = ActionRecord(id, kind, targetType, targetId, payload, undone = false)
     }
 
-    // UndoStore (only what SALARY_SPLIT undo touches; the rest must never be called here)
+    // UndoStore (only what split/balance undo touches; the rest must never be called here)
     override suspend fun getAction(id: Long): ActionRecord? = actions[id]
     override suspend fun markUndone(id: Long, atMillis: Long) {
         actions[id] = actions[id]!!.copy(undone = true)
     }
-    override suspend fun deleteAllocations(ids: List<Long>): Int =
-        ids.count { id -> (allocations.remove(id) != null).also { if (it) sources.remove(id) } }
+    override suspend fun deleteBucketEntries(ids: List<Long>): Int =
+        ids.count { entries.remove(it) != null }
+    override suspend fun deleteBalanceSnapshot(id: Long) = error("not used")
     override suspend fun deleteTransaction(id: Long) = error("not used")
     override suspend fun transactionCategory(id: Long) = error("not used")
     override suspend fun setTransactionCategory(id: Long, categoryId: Long?) = error("not used")
@@ -147,66 +166,166 @@ private class FakeBucketStore : BucketStore, UndoStore {
     override suspend fun setTransactionTrip(id: Long, tripId: Long?) = error("not used")
     override suspend fun accountHasTransactions(id: Long) = error("not used")
     override suspend fun deleteAccount(id: Long) = error("not used")
+
+    fun actionOfKind(kind: String) = actions.entries.single { it.value.kind == kind }
 }
 
 class BucketSplitterTest {
 
-    private val plan = listOf(
-        PlanEntry(1, PlanKinds.PERCENT, 4_000),
-        PlanEntry(2, PlanKinds.FIXED, 2_500_000),
-    )
+    // The owner-confirmed lines a template prefill would produce for ₹80,757.00.
+    private val confirmedLines = listOf(SplitLine(1, 3_230_280), SplitLine(2, 2_500_000))
 
-    @Test fun `split writes allocations and one undoable action`() = runBlocking {
+    @Test fun `confirmed split writes entries and one undoable action`() = runBlocking {
         val store = FakeBucketStore()
-        val outcome = BucketSplitter(store).splitSalary(99, 8_075_700, "2026-08", plan, 1_000L)
+        val outcome = BucketSplitter(store).applySplit(99, 8_075_700, confirmedLines, 1_000L)
 
         assertTrue(outcome is SplitOutcome.Done)
-        assertEquals(2, store.allocations.size)
-        val action = store.actions.values.single()
-        assertEquals(ActionKinds.SALARY_SPLIT, action.kind)
+        outcome as SplitOutcome.Done
+        assertEquals(2, outcome.entryIds.size)
+        assertEquals(2_345_420L, outcome.leftoverPaise)
+        assertTrue(store.entries.values.all { it.kind == EntryKinds.SPLIT && it.sourceTransactionId == 99L })
+
+        val action = store.actionOfKind(ActionKinds.AMOUNT_SPLIT).value
+        assertEquals("transaction", action.targetType)
         assertEquals(99L, action.targetId)
-        assertEquals(2, action.payload[PayloadKeys.ALLOCATION_IDS]!!.split(",").size)
+        assertEquals(2, action.payload[PayloadKeys.ENTRY_IDS]!!.split(",").size)
     }
 
-    @Test fun `second split of the same salary is refused`() = runBlocking {
+    @Test fun `second split of the same credit is refused`() = runBlocking {
         val store = FakeBucketStore()
         val splitter = BucketSplitter(store)
-        splitter.splitSalary(99, 8_075_700, "2026-08", plan, 1_000L)
-        assertEquals(SplitOutcome.AlreadySplit, splitter.splitSalary(99, 8_075_700, "2026-08", plan, 2_000L))
-        assertEquals(2, store.allocations.size)
+        splitter.applySplit(99, 8_075_700, confirmedLines, 1_000L)
+        assertEquals(SplitOutcome.AlreadySplit, splitter.applySplit(99, 8_075_700, confirmedLines, 2_000L))
+        assertEquals(2, store.entries.size)
     }
 
-    @Test fun `empty plan is refused`() = runBlocking {
+    @Test fun `splitting unallocated money has no source and no idempotence guard`() = runBlocking {
         val store = FakeBucketStore()
-        assertEquals(SplitOutcome.EmptyPlan, BucketSplitter(store).splitSalary(99, 8_075_700, "2026-08", emptyList(), 1_000L))
+        val splitter = BucketSplitter(store)
+        assertTrue(splitter.applySplit(null, 100_000, listOf(SplitLine(1, 100_000)), 1_000L) is SplitOutcome.Done)
+        assertTrue(splitter.applySplit(null, 50_000, listOf(SplitLine(2, 50_000)), 2_000L) is SplitOutcome.Done)
+
+        val actions = store.actions.values.filter { it.kind == ActionKinds.AMOUNT_SPLIT }
+        assertEquals(2, actions.size)
+        assertTrue(actions.all { it.targetType == "unallocated" && it.targetId == 0L })
     }
 
-    @Test fun `zero amount lines are not written`() = runBlocking {
+    @Test fun `editor cannot allocate more than the amount`() = runBlocking {
         val store = FakeBucketStore()
-        BucketSplitter(store).splitSalary(
-            99, 100_000, "2026-08",
-            listOf(PlanEntry(1, PlanKinds.FIXED, 100_000), PlanEntry(2, PlanKinds.PERCENT, 5_000)),
-            1_000L,
+        val outcome = BucketSplitter(store)
+            .applySplit(99, 100_000, listOf(SplitLine(1, 70_000), SplitLine(2, 35_000)), 1_000L)
+        assertEquals(SplitOutcome.Invalid(SplitValidation.OverAmount(5_000)), outcome)
+        assertTrue(store.entries.isEmpty())
+        assertTrue(store.actions.isEmpty())
+    }
+
+    @Test fun `negative lines are refused`() = runBlocking {
+        val store = FakeBucketStore()
+        val outcome = BucketSplitter(store).applySplit(99, 100_000, listOf(SplitLine(1, -1)), 1_000L)
+        assertEquals(SplitOutcome.Invalid(SplitValidation.NegativeLine), outcome)
+        assertTrue(store.entries.isEmpty())
+    }
+
+    @Test fun `zero lines are skipped and an all-zero split writes nothing`() = runBlocking {
+        val store = FakeBucketStore()
+        val splitter = BucketSplitter(store)
+
+        splitter.applySplit(99, 100_000, listOf(SplitLine(1, 100_000), SplitLine(2, 0)), 1_000L)
+        assertEquals(1, store.entries.size) // bucket 2 got 0, no row
+
+        assertEquals(
+            SplitOutcome.NothingToWrite,
+            splitter.applySplit(null, 100_000, listOf(SplitLine(1, 0), SplitLine(2, 0)), 2_000L),
         )
-        assertEquals(1, store.allocations.size) // bucket 2 got 0, no row
+        assertEquals(1, store.entries.size)
+        assertEquals(1, store.actions.size)
     }
 
-    @Test fun `undo removes exactly the allocations the split created`() = runBlocking {
+    @Test fun `undo removes exactly the entries the split created`() = runBlocking {
         val store = FakeBucketStore()
-        BucketSplitter(store).splitSalary(99, 8_075_700, "2026-08", plan, 1_000L)
-        store.insertAllocation(3, "2026-08", 50_000, sourceTransactionId = null, createdAt = 1_500L) // unrelated manual allocation
-        val actionId = store.actions.entries.single { it.value.kind == ActionKinds.SALARY_SPLIT }.key
+        val splitter = BucketSplitter(store)
+        splitter.applySplit(99, 8_075_700, confirmedLines, 1_000L)
+        splitter.adjust(3, 50_000, note = null, nowMillis = 1_500L) // unrelated manual entry
+        val actionId = store.actionOfKind(ActionKinds.AMOUNT_SPLIT).key
 
         assertEquals(UndoResult.Done, UndoEngine(store).undo(actionId, 2_000L))
-        assertEquals(1, store.allocations.size) // only the unrelated one survives
+        assertEquals(1, store.entries.size) // only the unrelated one survives
         assertTrue(store.getAction(actionId)!!.undone)
     }
 
-    @Test fun `undo after allocations were already deleted is target gone`() = runBlocking {
+    @Test fun `legacy salary split actions still undo after the entries migration`() = runBlocking {
         val store = FakeBucketStore()
-        BucketSplitter(store).splitSalary(99, 8_075_700, "2026-08", plan, 1_000L)
-        store.allocations.clear()
-        val actionId = store.actions.entries.single { it.value.kind == ActionKinds.SALARY_SPLIT }.key
+        // Pre-envelope state: allocation rows became SPLIT entries with the SAME ids (migration
+        // rule), and the old action still carries them under the legacy ALLOCATION_IDS key.
+        val a = store.insertEntry(1, 3_230_280, EntryKinds.SPLIT, 99, null, 1_000L)
+        val b = store.insertEntry(2, 2_500_000, EntryKinds.SPLIT, 99, null, 1_000L)
+        store.recordAction(
+            ActionKinds.SALARY_SPLIT, "transaction", 99, "Split salary",
+            mapOf(PayloadKeys.ALLOCATION_IDS to "$a,$b"), 1_000L,
+        )
+        val actionId = store.actionOfKind(ActionKinds.SALARY_SPLIT).key
+
+        assertEquals(UndoResult.Done, UndoEngine(store).undo(actionId, 2_000L))
+        assertTrue(store.entries.isEmpty())
+    }
+
+    @Test fun `undo after the entries were already deleted is target gone`() = runBlocking {
+        val store = FakeBucketStore()
+        BucketSplitter(store).applySplit(99, 8_075_700, confirmedLines, 1_000L)
+        store.entries.clear()
+        val actionId = store.actionOfKind(ActionKinds.AMOUNT_SPLIT).key
         assertEquals(UndoResult.TargetGone, UndoEngine(store).undo(actionId, 2_000L))
+    }
+
+    @Test fun `manual adjust writes one signed entry and no action`() = runBlocking {
+        val store = FakeBucketStore()
+        val splitter = BucketSplitter(store)
+        val addId = splitter.adjust(1, 25_000, note = "birthday cash", nowMillis = 1_000L)
+        val takeId = splitter.adjust(1, -10_000, note = null, nowMillis = 2_000L)
+
+        assertEquals(25_000L, store.entries[addId]!!.amountPaise)
+        assertEquals(-10_000L, store.entries[takeId]!!.amountPaise)
+        assertTrue(store.entries.values.all { it.kind == EntryKinds.MANUAL })
+        assertTrue(store.actions.isEmpty())
+    }
+
+    @Test fun `zero manual adjustment is refused`() = runBlocking {
+        val store = FakeBucketStore()
+        try {
+            BucketSplitter(store).adjust(1, 0, null, 1_000L)
+            fail("expected IllegalArgumentException")
+        } catch (expected: IllegalArgumentException) {
+        }
+        assertTrue(store.entries.isEmpty())
+    }
+
+    @Test fun `move writes two linked legs that sum to zero`() = runBlocking {
+        val store = FakeBucketStore()
+        val (fromId, toId) = BucketSplitter(store).move(1, 2, 30_000, 1_000L)
+
+        val from = store.entries[fromId]!!
+        val to = store.entries[toId]!!
+        assertEquals(-30_000L, from.amountPaise)
+        assertEquals(30_000L, to.amountPaise)
+        assertEquals(0L, from.amountPaise + to.amountPaise)
+        assertEquals(toId, from.counterpartEntryId)
+        assertEquals(fromId, to.counterpartEntryId)
+        assertTrue(store.actions.isEmpty())
+    }
+
+    @Test fun `move refuses zero amounts and same-bucket moves`() = runBlocking {
+        val store = FakeBucketStore()
+        val splitter = BucketSplitter(store)
+        try {
+            splitter.move(1, 2, 0, 1_000L)
+            fail("expected IllegalArgumentException")
+        } catch (expected: IllegalArgumentException) {
+        }
+        try {
+            splitter.move(1, 1, 10_000, 1_000L)
+            fail("expected IllegalArgumentException")
+        } catch (expected: IllegalArgumentException) {
+        }
+        assertTrue(store.entries.isEmpty())
     }
 }

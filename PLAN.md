@@ -377,6 +377,43 @@ The borrowed Mac runs **Claude (architect)**: all decisions, specs, correctness-
 
 ---
 
+## Phase 11 — Account balances + envelope buckets (M)
+
+> Added 2026-08-23 by owner decision (see change log). Work order: `workorders/phase11.md`.
+
+**Goal:** You always know how much money you have and exactly where every rupee of it sits — and bucket money is fully yours to command.
+
+**What we build**
+- **Envelope buckets:** money in a bucket carries over until you spend or move it — the month-scoped allocation model is retired. Bucket balance = everything ever put in − everything ever spent from it, computed live (core rule 2).
+- **Split anything, always confirmed:** any credit (salary is just the common case) — or any unallocated amount — can be split into buckets. Your plan becomes a **split template** that prefills an editable editor; nothing moves until you approve the lines. Salary-looking credits get a "Split this?" card; every credit gets a "Split into buckets…" action.
+- **Manual control:** add to, take out of, and move between buckets anytime, with a per-bucket history where each manual entry can be deleted.
+- **Account balances:** you state each account's real balance once; every captured transaction moves it. "Correct balance" writes a newer snapshot and logs an undoable action — drift (cash, missed SMS, bank fees) is corrected honestly, never silently.
+- **The money map** at the top of the Buckets tab: total balance, per-account balances, and the distribution — each bucket (with its reserved part), and unallocated.
+
+**What we do NOT build yet**
+- No automatic splitting of anything — the owner confirms every split (owner decision).
+- No balance predictions or spending forecasts; the map shows what IS, not what might be.
+
+**Exit gate**
+- [ ] Migration v5→v6 preserves every allocation as a ledger entry (same ids); undo of a pre-migration salary split still works.
+- [ ] Any credit can be split exactly once via the confirmed editor; splitting unallocated money works without a source.
+- [ ] Add / take out / move all work; a move's two legs always sum to zero and delete together.
+- [ ] Balance: set once, tracks every captured transaction; a correction logs an undoable action; untracked accounts show "not tracked", never ₹0.
+- [ ] Money map: total = sum of account balances; unallocated = total − bucket balances, verified by hand; Overview's total matches the Buckets tab exactly.
+- [ ] All architect-owned tests pass unmodified.
+
+**Your manual checks**
+- Set your real BoB and HDFC balances, then make a real payment and watch the balance move by exactly that amount.
+- Split a real credit, change one line in the editor before applying, and verify the bucket balances by hand.
+- Move money between two buckets and check both cards; take money out and check unallocated grew.
+- Compare the app's balance against your bank app after a few days; correct it once; confirm the correction shows in Activity and undo reverses it.
+
+**What you'll learn:** reconciliation — why every ledger app must let reality overrule its own arithmetic, visibly.
+
+**Likely to change:** which credits get the "Split this?" card (salary-detection only at first; we widen it if you find yourself splitting other credits often), and the money-map layout.
+
+---
+
 ## Cross-phase rules (never suspended)
 
 From ARCHITECTURE.md, restated because every phase must obey them:
@@ -398,10 +435,11 @@ From ARCHITECTURE.md, restated because every phase must obey them:
 | 4 | Recurring | M | ✅ done | 2026-08-22 |
 | 5 | People & trips | M | ✅ done | 2026-08-23 |
 | 6 | Overview screen | S | ✅ done | 2026-08-23 |
-| 7 | Notification listener | M | not started | — |
-| 8 | Cloud mirror + sync | L | not started | — |
-| 9 | ChatGPT integration | M | not started | — |
-| 10 | Export | S | not started | — |
+| 7 | Notification listener | M | ⛔ declined | — |
+| 8 | Cloud mirror + sync | L | ⏸ parked | — |
+| 9 | ChatGPT integration | M | ⏸ parked | — |
+| 10 | Export | S | ⏸ on hold | — |
+| 11 | Account balances + envelope buckets | M | in progress | — |
 
 ## Change log
 
@@ -412,3 +450,5 @@ Plan changes are recorded here, never made silently.
 | 2026-08-22 | Plan created. | — |
 | 2026-08-22 | Two-machine workflow adopted: Claude architects/reviews on the borrowed Mac (no heavy installs there), Codex implements/builds on Rajnikant's laptop, GitHub as the shared medium. Phase 0 amended accordingly; `AGENTS.md` + `workorders/` added. | Borrowed Mac has no disk space for the Android toolchain and shouldn't be modified; Rajnikant's own laptop has Codex and manageable space. |
 | 2026-08-23 | Phases 8–9 (cloud mirror + ChatGPT) parked indefinitely by owner decision; phase 10 also on hold. After phase 7 the owner decides what happens next. Phase 7 runs in two stages (A: notification harvest, B: templates + merge), mirroring phase 2's approach. | Owner doesn't want the ChatGPT configuration now; until any backup path exists, note that all data lives on the phone only. |
+| 2026-08-23 | Phase 7 (notification listener) declined by owner. `workorders/phase7a.md` cancelled; its planned v6 migration was never built, so the v6 slot is reused by phase 11. | Owner decision — SMS capture alone is doing the job. |
+| 2026-08-23 | Phase 11 added: envelope buckets (carryover, owner-confirmed splits of any amount, manual add/take-out/move) + per-account balance tracking with visible corrections + the money map. Retires the month-scoped allocation model and the salary-only split. Decided with the owner: carryover yes; balances per account; splits always ask first; money map lives at the top of the Buckets tab. | Owner wants any amount splittable under manual control, and wants the app to know account balances — "knowing account's balance will change lot of things". |

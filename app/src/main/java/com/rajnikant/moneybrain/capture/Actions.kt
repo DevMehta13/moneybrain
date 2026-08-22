@@ -16,14 +16,20 @@ object ActionKinds {
     const val RECURRING_MATCHED = "RECURRING_MATCHED"     // target: recurring item. Undo: restore previous nextDue.
     const val RECURRING_SKIPPED = "RECURRING_SKIPPED"     // target: recurring item. Undo: restore previous nextDue.
     const val TRIP_FILED = "TRIP_FILED"                   // target: transaction. Undo: restore previous trip (usually none).
+    const val AMOUNT_SPLIT = "AMOUNT_SPLIT"               // target: source transaction (or unallocated pool, id 0). Undo: delete its bucket entries.
+    const val BALANCE_CORRECTED = "BALANCE_CORRECTED"     // target: account. Undo: delete the balance snapshot.
 }
 
 /** Payload keys. Empty string encodes null. */
 object PayloadKeys {
     const val OLD_CATEGORY_ID = "oldCategoryId"
     const val NEW_CATEGORY_ID = "newCategoryId"
-    /** Comma-separated allocation ids created by a SALARY_SPLIT. */
+    /** Legacy: comma-separated allocation ids from pre-envelope SALARY_SPLIT actions. */
     const val ALLOCATION_IDS = "allocationIds"
+    /** Comma-separated bucket entry ids created by an AMOUNT_SPLIT. */
+    const val ENTRY_IDS = "entryIds"
+    /** Balance snapshot row a BALANCE_CORRECTED action created. */
+    const val SNAPSHOT_ID = "snapshotId"
     /** ISO date the recurring item's nextDue held before a match/skip advanced it. */
     const val OLD_NEXT_DUE = "oldNextDue"
     /** Trip id a transaction had before auto-filing ("" = none). */
@@ -95,8 +101,10 @@ interface UndoStore {
     suspend fun deleteRule(id: Long): Boolean
     suspend fun accountHasTransactions(id: Long): Boolean
     suspend fun deleteAccount(id: Long): Boolean
-    /** Deletes the given bucket allocations; returns how many rows actually existed. */
-    suspend fun deleteAllocations(ids: List<Long>): Int
+    /** Deletes the given bucket entries; returns how many rows actually existed. */
+    suspend fun deleteBucketEntries(ids: List<Long>): Int
+    /** Deletes a balance snapshot; false when it no longer exists. */
+    suspend fun deleteBalanceSnapshot(id: Long): Boolean
     /** Restores a recurring item's nextDue; false when the item no longer exists. */
     suspend fun setRecurringNextDue(id: Long, nextDueIso: String): Boolean
     /** Sets a transaction's trip (null = none); false when the transaction no longer exists. */
@@ -135,11 +143,21 @@ class UndoEngine(private val store: UndoStore) {
             ActionKinds.RULE_LEARNED ->
                 if (store.deleteRule(action.targetId)) UndoResult.Done else UndoResult.TargetGone
 
-            ActionKinds.SALARY_SPLIT -> {
-                val ids = action.payload[PayloadKeys.ALLOCATION_IDS].orEmpty()
-                    .split(",").mapNotNull { it.trim().toLongOrNull() }
+            ActionKinds.SALARY_SPLIT, ActionKinds.AMOUNT_SPLIT -> {
+                // AMOUNT_SPLIT stores ENTRY_IDS; pre-envelope SALARY_SPLIT rows stored
+                // ALLOCATION_IDS — same rows, the v6 migration kept their ids.
+                val raw = action.payload[PayloadKeys.ENTRY_IDS]
+                    ?: action.payload[PayloadKeys.ALLOCATION_IDS].orEmpty()
+                val ids = raw.split(",").mapNotNull { it.trim().toLongOrNull() }
                 if (ids.isEmpty()) UndoResult.TargetGone
-                else if (store.deleteAllocations(ids) > 0) UndoResult.Done
+                else if (store.deleteBucketEntries(ids) > 0) UndoResult.Done
+                else UndoResult.TargetGone
+            }
+
+            ActionKinds.BALANCE_CORRECTED -> {
+                val snapshotId = action.payload[PayloadKeys.SNAPSHOT_ID].orEmpty().toLongOrNull()
+                if (snapshotId == null) UndoResult.TargetGone
+                else if (store.deleteBalanceSnapshot(snapshotId)) UndoResult.Done
                 else UndoResult.TargetGone
             }
 

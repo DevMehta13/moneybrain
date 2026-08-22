@@ -5,9 +5,13 @@ package com.rajnikant.moneybrain.buckets
  * Bucket money math. Everything is integer paise; percentages are basis points
  * (Long, 10000 = 100%) so no floating point ever touches money.
  *
+ * The plan is a split TEMPLATE (owner decision 2026-08-23): it applies to ANY amount, not
+ * just salary, and split() only PREFILLS the editable split editor — the owner confirms
+ * (and may change) every line before BucketSplitter writes anything.
+ *
  * Split policy (deterministic, user-predictable):
  * - Plan entries apply IN ORDER.
- * - FIXED takes its paise value; PERCENT takes salary * bp / 10000 (integer division).
+ * - FIXED takes its paise value; PERCENT takes amount * bp / 10000 (integer division).
  * - Each entry is capped by what is still unallocated, so an over-full plan degrades
  *   gracefully instead of inventing money.
  * - Whatever is left after all entries stays UNALLOCATED (a visible feature, not an error;
@@ -24,15 +28,15 @@ data class SplitResult(val lines: List<SplitLine>, val unallocatedPaise: Long)
 
 object BucketMath {
 
-    fun split(salaryPaise: Long, plan: List<PlanEntry>): SplitResult {
-        require(salaryPaise >= 0) { "negative salary" }
-        var remaining = salaryPaise
+    fun split(amountPaise: Long, plan: List<PlanEntry>): SplitResult {
+        require(amountPaise >= 0) { "negative amount" }
+        var remaining = amountPaise
         val lines = ArrayList<SplitLine>(plan.size)
         for (entry in plan) {
             require(entry.value >= 0) { "negative plan value" }
             val wanted = when (entry.kind) {
                 PlanKinds.FIXED -> entry.value
-                PlanKinds.PERCENT -> salaryPaise * entry.value / 10_000
+                PlanKinds.PERCENT -> amountPaise * entry.value / 10_000
                 else -> throw IllegalArgumentException("unknown plan kind: ${entry.kind}")
             }
             val take = if (wanted < remaining) wanted else remaining

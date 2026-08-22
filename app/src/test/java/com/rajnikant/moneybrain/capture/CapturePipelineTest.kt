@@ -82,9 +82,10 @@ private class FakeStore : CaptureStore, UndoStore, RuleStore {
     override suspend fun accountHasTransactions(id: Long): Boolean =
         transactions.values.any { it.accountId == id }
     override suspend fun deleteAccount(id: Long): Boolean = accounts.remove(id) != null
-    val allocations = mutableMapOf<Long, Long>() // allocationId -> bucketId (enough for undo tests)
-    override suspend fun deleteAllocations(ids: List<Long>): Int =
-        ids.count { allocations.remove(it) != null }
+    val bucketEntries = mutableMapOf<Long, Long>() // entryId -> bucketId (enough for undo tests)
+    override suspend fun deleteBucketEntries(ids: List<Long>): Int =
+        ids.count { bucketEntries.remove(it) != null }
+    override suspend fun deleteBalanceSnapshot(id: Long): Boolean = error("not used")
     val recurringDues = mutableMapOf<Long, String>()
     override suspend fun setRecurringNextDue(id: Long, nextDueIso: String): Boolean =
         if (recurringDues.containsKey(id)) { recurringDues[id] = nextDueIso; true } else false
