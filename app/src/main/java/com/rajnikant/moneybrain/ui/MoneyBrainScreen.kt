@@ -69,6 +69,7 @@ import com.rajnikant.moneybrain.capture.SmsParser
 import com.rajnikant.moneybrain.capture.ActionKinds
 import com.rajnikant.moneybrain.capture.UndoResult
 import com.rajnikant.moneybrain.data.AccountEntity
+import com.rajnikant.moneybrain.data.BalanceSnapshotEntity
 import com.rajnikant.moneybrain.data.CategoryEntity
 import com.rajnikant.moneybrain.data.PersonLedgerEntity
 import com.rajnikant.moneybrain.data.TransactionEntity
@@ -103,6 +104,9 @@ import com.rajnikant.moneybrain.summary.peopleSummary
 import com.rajnikant.moneybrain.summary.upcomingRecurring
 import com.rajnikant.moneybrain.summary.bucketStatuses
 import com.rajnikant.moneybrain.summary.moneyMap
+import com.rajnikant.moneybrain.money.BalanceMath
+import com.rajnikant.moneybrain.money.BalanceSnapshot
+import com.rajnikant.moneybrain.money.BalanceTxn
 import com.rajnikant.moneybrain.summary.detectedRecurring
 import com.rajnikant.moneybrain.summary.tripTotal
 import java.time.Instant
@@ -113,6 +117,7 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 
 private const val timelineRoute = "timeline"
 private const val overviewRoute = "overview"
@@ -194,7 +199,7 @@ fun MoneyBrainScreen() {
             composable(recurringRoute) { RecurringScreen(database) }
             composable(accountsRoute) {
                 val viewModel: AccountsViewModel = viewModel(factory = factory)
-                AccountsScreen(viewModel, onBack = { navController.popBackStack() })
+                AccountsScreen(viewModel, database, onBack = { navController.popBackStack() })
             }
             composable(captureRoute) {
                 CaptureScreen(onBack = { navController.popBackStack() })
@@ -1007,14 +1012,24 @@ private fun readBankMessages(contentResolver: ContentResolver): List<CapturedMes
 }
 
 @Composable
-private fun AccountsScreen(viewModel: AccountsViewModel, onBack: () -> Unit) {
+private fun AccountsScreen(viewModel: AccountsViewModel, database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBack: () -> Unit) {
     val accounts by viewModel.accounts.collectAsState(initial = emptyList())
+    val snapshots by database.balanceSnapshotDao().observeAll().collectAsState(initial = emptyList())
+    val transactions by database.transactionDao().observeAll().collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("CASH") }
+    var correcting by remember { mutableStateOf<AccountEntity?>(null) }
+    var balanceText by remember { mutableStateOf("") }
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         TextButton(onClick = onBack) { Text("Back") }
         Text("Accounts", style = MaterialTheme.typography.headlineSmall)
-        accounts.forEach { account -> Text("${account.name} · ${account.type}") }
+        accounts.forEach { account ->
+            val convertedSnapshots = snapshots.map { BalanceSnapshot(it.id, it.accountId, it.balancePaise, it.asOfMillis) }
+            val convertedTransactions = transactions.map { BalanceTxn(it.accountId, it.amountPaise, it.direction, it.occurredAt) }
+            val balance = BalanceMath.accountBalance(account.id, convertedSnapshots, convertedTransactions)
+            TextButton(onClick = { correcting = account; balanceText = balance?.let { Money.formatPaise(it).removePrefix("₹") }.orEmpty() }) { Text("${account.name} · ${account.type} · ${balance?.let { Money.formatPaise(it) } ?: "not tracked"}") }
+        }
         HorizontalDivider()
         OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Account name") })
         AccountTypePicker(type) { type = it }
@@ -1026,6 +1041,23 @@ private fun AccountsScreen(viewModel: AccountsViewModel, onBack: () -> Unit) {
             enabled = name.isNotBlank(),
         ) { Text("Add account") }
     }
+    correcting?.let { account -> AlertDialog(
+        onDismissRequest = { correcting = null },
+        title = { Text(if (snapshots.any { it.accountId == account.id }) "Correct balance" else "Set balance") },
+        text = { OutlinedTextField(balanceText, { balanceText = it }, label = { Text("Balance ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)) },
+        confirmButton = { TextButton(onClick = {
+            Money.parseToPaise(balanceText)?.let { stated -> scope.launch { database.withTransaction {
+                val convertedSnapshots = database.balanceSnapshotDao().getAll().map { BalanceSnapshot(it.id, it.accountId, it.balancePaise, it.asOfMillis) }
+                val txs = database.transactionDao().observeAll().first().map { BalanceTxn(it.accountId, it.amountPaise, it.direction, it.occurredAt) }
+                val previous = BalanceMath.accountBalance(account.id, convertedSnapshots, txs)
+                val now = System.currentTimeMillis()
+                val snapshotId = database.balanceSnapshotDao().insert(BalanceSnapshotEntity(accountId = account.id, balancePaise = stated, asOfMillis = now, deltaPaise = previous?.let { BalanceMath.correctionDelta(stated, it) }, createdAt = now))
+                val description = if (previous == null) "Set ${account.name} balance: ${Money.formatPaise(stated)}" else "Corrected ${account.name} balance by ${Money.formatPaise(BalanceMath.correctionDelta(stated, previous))}"
+                database.actionDao().insert(ActionEntity(kind = ActionKinds.BALANCE_CORRECTED, targetType = "account", targetId = account.id, description = description, payload = ActionPayload.encode(mapOf(PayloadKeys.SNAPSHOT_ID to snapshotId.toString())), createdAt = now))
+            }; correcting = null } }
+        }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = { correcting = null }) { Text("Cancel") } },
+    ) }
 }
 
 @Composable
