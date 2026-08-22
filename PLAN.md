@@ -397,7 +397,7 @@ From ARCHITECTURE.md, restated because every phase must obey them:
 | 3 | Buckets + salary split | M | ✅ done | 2026-08-22 |
 | 4 | Recurring | M | ✅ done | 2026-08-22 |
 | 5 | People & trips | M | ✅ done | 2026-08-23 |
-| 6 | Overview screen | S | not started | — |
+| 6 | Overview screen | S | ✅ done | 2026-08-23 |
 | 7 | Notification listener | M | not started | — |
 | 8 | Cloud mirror + sync | L | not started | — |
 | 9 | ChatGPT integration | M | not started | — |

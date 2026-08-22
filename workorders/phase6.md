@@ -1,6 +1,6 @@
 # Work order: Phase 6 — the Overview screen
 
-Status: COMPLETE
+Status: DONE — gate passed 2026-08-23 (architect review + one-line month-refresh fix + owner checks)
 Phase reference: PLAN.md → Phase 6
 
 ## Goal
@@ -72,16 +72,16 @@ and Overview consume. Duplicated queries that could drift are a review-fail.
 
 ## Acceptance
 
-- [ ] Overview shows all six sections with real data; every number identical to its
+- [x] Overview shows all six sections with real data; every number identical to its
       detail screen at the same moment.
-- [ ] Needs-attention strip appears only when non-empty; counts correct; each segment
+- [x] Needs-attention strip appears only when non-empty; counts correct; each segment
       navigates to the right place (uncategorised lands pre-filtered).
-- [ ] Search finds by merchant, notes, and category name; filters combine correctly;
+- [x] Search finds by merchant, notes, and category name; filters combine correctly;
       person filter works.
-- [ ] Navigation: Overview is home; all 8 product.md screens reachable; real icons.
-- [ ] Trip delete unfiles its transactions atomically, only for ended trips.
-- [ ] Month rollover: bucket month refreshes without an app restart.
-- [ ] All architect-owned tests pass unmodified.
+- [x] Navigation: Overview is home; all 8 product.md screens reachable; real icons.
+- [x] Trip delete unfiles its transactions atomically, only for ended trips.
+- [x] Month rollover: bucket month refreshes without an app restart.
+- [x] All architect-owned tests pass unmodified.
 
 ## Questions
 
