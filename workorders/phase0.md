@@ -59,7 +59,7 @@ Completed the laptop-side skeleton and build pipeline:
 - A clean local build (`./gradlew clean assembleDebug`) succeeded. I then rebuilt after
   changing the placeholder from “Phase 0 — skeleton” to “Phase 0 — skeleton v2”; the
   final `./gradlew assembleDebug` also succeeded.
-- Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (11,571,571 bytes).
+- Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (11,566,149 bytes).
 
 Phone installation and restart acceptance checks are blocked because no Android device is
 connected: `adb devices -l` returned no devices. Device model and Android version are
