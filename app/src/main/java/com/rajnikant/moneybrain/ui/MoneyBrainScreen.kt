@@ -48,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
@@ -64,10 +65,13 @@ import androidx.navigation.compose.rememberNavController
 import com.rajnikant.moneybrain.MoneyBrainApp
 import com.rajnikant.moneybrain.capture.SmsMask
 import com.rajnikant.moneybrain.capture.SmsParser
+import com.rajnikant.moneybrain.capture.ActionKinds
+import com.rajnikant.moneybrain.capture.UndoResult
 import com.rajnikant.moneybrain.data.AccountEntity
 import com.rajnikant.moneybrain.data.CategoryEntity
 import com.rajnikant.moneybrain.money.Money
 import com.rajnikant.moneybrain.viewmodel.AccountsViewModel
+import com.rajnikant.moneybrain.viewmodel.ActivityViewModel
 import com.rajnikant.moneybrain.viewmodel.MoneyBrainViewModelFactory
 import com.rajnikant.moneybrain.viewmodel.TimelineItem
 import com.rajnikant.moneybrain.viewmodel.TimelineEntry
@@ -84,6 +88,7 @@ import kotlinx.coroutines.withContext
 
 private const val timelineRoute = "timeline"
 private const val settingsRoute = "settings"
+private const val activityRoute = "activity"
 private const val accountsRoute = "accounts"
 private const val captureRoute = "capture"
 private const val addRoute = "add"
@@ -95,6 +100,7 @@ fun MoneyBrainScreen() {
     val database = (context.applicationContext as MoneyBrainApp).database
     val factory = remember(database) {
         MoneyBrainViewModelFactory(
+            database = database,
             transactionDao = database.transactionDao(),
             accountDao = database.accountDao(),
             categoryDao = database.categoryDao(),
@@ -103,7 +109,7 @@ fun MoneyBrainScreen() {
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: timelineRoute
-    val isTopLevel = route == timelineRoute || route == settingsRoute
+    val isTopLevel = route == timelineRoute || route == activityRoute || route == settingsRoute
 
     Scaffold(
         bottomBar = {
@@ -134,6 +140,10 @@ fun MoneyBrainScreen() {
                     onCapture = { navController.navigate(captureRoute) },
                 )
             }
+            composable(activityRoute) {
+                val viewModel: ActivityViewModel = viewModel(factory = factory)
+                ActivityScreen(viewModel, onAddManually = { navController.navigate(addRoute) })
+            }
             composable(accountsRoute) {
                 val viewModel: AccountsViewModel = viewModel(factory = factory)
                 AccountsScreen(viewModel, onBack = { navController.popBackStack() })
@@ -154,6 +164,7 @@ fun MoneyBrainScreen() {
                     ?: return@composable
                 val editFactory = remember(factory, transactionId) {
                     MoneyBrainViewModelFactory(
+                        database = database,
                         transactionDao = database.transactionDao(),
                         accountDao = database.accountDao(),
                         categoryDao = database.categoryDao(),
@@ -179,6 +190,12 @@ private fun BottomBar(navController: NavHostController, route: String) {
             onClick = { navController.navigateTopLevel(timelineRoute) },
             icon = { Text("•") },
             label = { Text("Timeline") },
+        )
+        NavigationBarItem(
+            selected = route == activityRoute,
+            onClick = { navController.navigateTopLevel(activityRoute) },
+            icon = { Text("•") },
+            label = { Text("Activity") },
         )
         NavigationBarItem(
             selected = route == settingsRoute,
@@ -252,6 +269,7 @@ private fun TransactionRow(item: TimelineItem, onClick: () -> Unit) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(item.category?.name ?: "Uncategorised", fontWeight = FontWeight.Medium)
+            if (transaction.source == "SMS") Text("auto", style = MaterialTheme.typography.labelSmall)
             if (detail.isNotBlank()) Text(detail, style = MaterialTheme.typography.bodySmall)
             Text(item.account?.name ?: "Unknown account", style = MaterialTheme.typography.bodySmall)
         }
@@ -262,6 +280,97 @@ private fun TransactionRow(item: TimelineItem, onClick: () -> Unit) {
         )
     }
     HorizontalDivider()
+}
+
+@Composable
+private fun ActivityScreen(viewModel: ActivityViewModel, onAddManually: () -> Unit) {
+    val actions by viewModel.actions.collectAsState(initial = emptyList())
+    val unresolved by viewModel.unresolvedMessages.collectAsState(initial = emptyList())
+    val snackbarHostState = remember { SnackbarHostState() }
+    var captureToUndo by remember { mutableStateOf<Long?>(null) }
+
+    LaunchedEffect(viewModel) {
+        viewModel.undoResults.collect { result ->
+            if (result is UndoResult.Blocked) snackbarHostState.showSnackbar(result.reason)
+        }
+    }
+    if (captureToUndo != null) {
+        AlertDialog(
+            onDismissRequest = { captureToUndo = null },
+            title = { Text("Remove this recorded payment?") },
+            text = { Text("The SMS itself is untouched.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.undo(captureToUndo!!)
+                    captureToUndo = null
+                }) { Text("Remove") }
+            },
+            dismissButton = { TextButton(onClick = { captureToUndo = null }) { Text("Cancel") } },
+        )
+    }
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item { Text("Activity", style = MaterialTheme.typography.headlineSmall) }
+            item { Text("Needs attention", style = MaterialTheme.typography.titleMedium) }
+            if (unresolved.isEmpty()) {
+                item { Text("Nothing needs attention.") }
+            } else {
+                items(unresolved, key = { it.id }) { message ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(SmsMask.mask(message.sender), fontWeight = FontWeight.Medium)
+                            Text(SmsMask.mask(message.body))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = { viewModel.dismissMessage(message.id) }) { Text("Dismiss") }
+                                TextButton(onClick = onAddManually) { Text("Add manually") }
+                            }
+                        }
+                    }
+                }
+            }
+            item { Text("Action log", style = MaterialTheme.typography.titleMedium) }
+            if (actions.isEmpty()) {
+                item { Text("No automatic actions yet.") }
+            } else {
+                items(actions, key = { it.id }) { action ->
+                    val undone = action.undoneAt != null
+                    Card(modifier = Modifier.fillMaxWidth().alpha(if (undone) 0.55f else 1f)) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(action.description, fontWeight = FontWeight.Medium)
+                                Text(action.createdAt.activityTime(), style = MaterialTheme.typography.bodySmall)
+                                if (undone) Text("Undone", style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (!undone) {
+                                TextButton(onClick = {
+                                    if (action.kind == ActionKinds.SMS_CAPTURED) captureToUndo = action.id
+                                    else viewModel.undo(action.id)
+                                }) { Text("Undo") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun Long.activityTime(): String {
+    val elapsedMinutes = ((System.currentTimeMillis() - this) / 60_000).coerceAtLeast(0)
+    return when {
+        elapsedMinutes < 1 -> "Just now"
+        elapsedMinutes < 60 -> "$elapsedMinutes min ago"
+        elapsedMinutes < 1_440 -> "${elapsedMinutes / 60} hr ago"
+        else -> Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH))
+    }
 }
 
 @Composable
@@ -469,15 +578,18 @@ private data class CapturedMessage(
 private fun CaptureScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var permissionGranted by remember {
-        mutableStateOf(context.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED)
+        mutableStateOf(
+            context.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED &&
+                context.checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED,
+        )
     }
     var permissionDenied by remember { mutableStateOf(false) }
     var messages by remember { mutableStateOf(emptyList<CapturedMessage>()) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        permissionGranted = granted
-        permissionDenied = !granted
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        permissionGranted = grants[Manifest.permission.READ_SMS] == true && grants[Manifest.permission.RECEIVE_SMS] == true
+        permissionDenied = !permissionGranted
     }
 
     LaunchedEffect(permissionGranted) {
@@ -503,7 +615,9 @@ private fun CaptureScreen(onBack: () -> Unit) {
                 if (permissionDenied) {
                     Text("SMS permission was not granted. You can try again whenever you are ready.")
                 }
-                Button(onClick = { permissionLauncher.launch(Manifest.permission.READ_SMS) }) {
+                Button(onClick = {
+                    permissionLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS))
+                }) {
                     Text("Grant permission")
                 }
             }

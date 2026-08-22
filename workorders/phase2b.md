@@ -139,4 +139,21 @@ captured and manual entries are distinguishable.
 
 ## Result
 
-(Fill in after execution.)
+- Added Room v2 with a hand-written 1→2 migration and exported v2 schema. The migration
+  adds bank codes, merchant rules, actions, and unparsed SMS tables; it does not use a
+  destructive fallback and preserves existing accounts, categories, and transactions.
+  The unused phase-1 Bank placeholder is removed only by the specified guarded SQL.
+- Added Room adapters for capture, undo, and rule learning. Fingerprint inserts use
+  `IGNORE`; rule upserts and capture/editor/undo multi-step flows run in Room transactions.
+- Added the `RECEIVE_SMS` permission and registered SMS receiver. It uses `goAsync()` and
+  reassembles all message parts per sender before calling the capture processor, so no HDFC
+  fragment is parsed on its own. Capture setup now requests both SMS permissions.
+- Added the Activity tab: masked unresolved SMS entries can be dismissed or sent to a blank
+  manual-add form; automatic actions support undo, including confirmation before deleting an
+  SMS-recorded transaction. SMS timeline rows show an `auto` marker. Editing a transaction's
+  category learns a rule for future captures.
+- `./gradlew test` and the debug build passed with all architect-owned capture tests unchanged.
+  The APK was installed over the existing phone app (no uninstall); the database migration
+  completed and the app launched without a Room/migration error. The SMS receiver is
+  registered and the Activity tab rendered successfully. A live test SMS was not sent during
+  this install check.

@@ -11,6 +11,7 @@ data class AccountEntity(
     val name: String,
     val type: String,
     val createdAt: Long,
+    val bankCode: String? = null,
 )
 
 @Entity(tableName = "categories")
@@ -56,4 +57,47 @@ data class TransactionEntity(
     val fingerprint: String? = null,
     val referenceNo: String? = null,
     val createdAt: Long,
+)
+
+@Entity(
+    tableName = "merchant_rules",
+    foreignKeys = [
+        ForeignKey(
+            entity = CategoryEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["categoryId"],
+            onDelete = ForeignKey.RESTRICT,
+        ),
+    ],
+    indices = [
+        Index(value = ["merchantKey"], unique = true),
+        Index(value = ["categoryId"]),
+    ],
+)
+data class MerchantRuleEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val merchantKey: String,
+    val categoryId: Long,
+    val createdAt: Long,
+)
+
+@Entity(tableName = "actions", indices = [Index(value = ["createdAt"])])
+data class ActionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val kind: String,
+    val targetType: String,
+    val targetId: Long,
+    val description: String,
+    val payload: String,
+    val createdAt: Long,
+    val undoneAt: Long? = null,
+)
+
+@Entity(tableName = "unparsed_sms", indices = [Index(value = ["receivedAt"])])
+data class UnparsedSmsEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sender: String,
+    val body: String,
+    val receivedAt: Long,
+    val resolvedAt: Long? = null,
 )

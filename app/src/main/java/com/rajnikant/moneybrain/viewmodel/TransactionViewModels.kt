@@ -3,6 +3,7 @@ package com.rajnikant.moneybrain.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -12,6 +13,10 @@ import com.rajnikant.moneybrain.data.CategoryDao
 import com.rajnikant.moneybrain.data.CategoryEntity
 import com.rajnikant.moneybrain.data.TransactionDao
 import com.rajnikant.moneybrain.data.TransactionEntity
+import com.rajnikant.moneybrain.data.MoneyBrainDatabase
+import com.rajnikant.moneybrain.data.RoomRuleStore
+import com.rajnikant.moneybrain.capture.RuleLearner
+import com.rajnikant.moneybrain.capture.RuleStore
 import com.rajnikant.moneybrain.money.Money
 import java.time.Instant
 import java.time.LocalDate
@@ -101,6 +106,8 @@ class TransactionEditorViewModel(
     private val accountDao: AccountDao,
     private val categoryDao: CategoryDao,
     private val transactionId: Long?,
+    private val ruleStore: RuleStore,
+    private val database: MoneyBrainDatabase,
 ) : ViewModel() {
     val accounts = accountDao.observeAll()
     val categories = categoryDao.observeAll()
@@ -162,7 +169,23 @@ class TransactionEditorViewModel(
                 referenceNo = previous?.referenceNo,
                 createdAt = previous?.createdAt ?: System.currentTimeMillis(),
             )
-            if (previous == null) transactionDao.insert(transaction) else transactionDao.update(transaction)
+            database.withTransaction {
+                if (previous == null) {
+                    transactionDao.insert(transaction)
+                } else {
+                    transactionDao.update(transaction)
+                    if (previous.categoryId != categoryId && transaction.merchant != null && categoryId != null) {
+                        categoryDao.getById(categoryId)?.let { category ->
+                            RuleLearner(ruleStore).learn(
+                                transaction.merchant,
+                                categoryId,
+                                category.name,
+                                System.currentTimeMillis(),
+                            )
+                        }
+                    }
+                }
+            }
             _finished.send(Unit)
         }
     }
@@ -194,6 +217,7 @@ class AccountsViewModel(private val accountDao: AccountDao) : ViewModel() {
 }
 
 class MoneyBrainViewModelFactory(
+    private val database: MoneyBrainDatabase,
     private val transactionDao: TransactionDao,
     private val accountDao: AccountDao,
     private val categoryDao: CategoryDao,
@@ -204,8 +228,16 @@ class MoneyBrainViewModelFactory(
         modelClass.isAssignableFrom(TimelineViewModel::class.java) ->
             TimelineViewModel(transactionDao, accountDao, categoryDao) as T
         modelClass.isAssignableFrom(TransactionEditorViewModel::class.java) ->
-            TransactionEditorViewModel(transactionDao, accountDao, categoryDao, transactionId) as T
+            TransactionEditorViewModel(
+                transactionDao,
+                accountDao,
+                categoryDao,
+                transactionId,
+                RoomRuleStore(database),
+                database,
+            ) as T
         modelClass.isAssignableFrom(AccountsViewModel::class.java) -> AccountsViewModel(accountDao) as T
+        modelClass.isAssignableFrom(ActivityViewModel::class.java) -> ActivityViewModel(database) as T
         else -> error("Unknown ViewModel: ${modelClass.name}")
     }
 }
