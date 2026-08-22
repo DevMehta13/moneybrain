@@ -58,7 +58,8 @@ Completed the laptop-side skeleton and build pipeline:
   “Phase 0 — skeleton v2”. No dependencies were added beyond the Compose template set.
 - A clean local build (`./gradlew clean assembleDebug`) succeeded. I then rebuilt after
   changing the placeholder from “Phase 0 — skeleton” to “Phase 0 — skeleton v2”; the
-  final `./gradlew assembleDebug` also succeeded.
+  final `./gradlew assembleDebug` also succeeded. A fresh clone of the pushed repository
+  also completed `./gradlew assembleDebug` successfully.
 - Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (11,566,149 bytes).
 
 Phone installation and restart acceptance checks are blocked because no Android device is
