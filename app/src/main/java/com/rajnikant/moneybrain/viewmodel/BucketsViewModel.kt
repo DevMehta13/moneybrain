@@ -13,9 +13,11 @@ import com.rajnikant.moneybrain.data.RoomBucketStore
 import com.rajnikant.moneybrain.data.BucketEntity
 import com.rajnikant.moneybrain.data.BucketPlanEntity
 import com.rajnikant.moneybrain.data.MoneyBrainDatabase
-import com.rajnikant.moneybrain.recurring.RecurringMath
-import com.rajnikant.moneybrain.recurring.toItem
+import com.rajnikant.moneybrain.summary.BucketStatus
+import com.rajnikant.moneybrain.summary.bucketStatuses
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.channels.Channel
@@ -24,7 +26,6 @@ import java.time.YearMonth
 import java.time.Instant
 import java.time.ZoneId
 
-data class BucketStatus(val bucket: BucketEntity, val allocated: Long, val spent: Long, val reserved: Long)
 sealed interface BucketMessage {
     data class Text(val value: String) : BucketMessage
 }
@@ -32,16 +33,14 @@ sealed interface BucketMessage {
 class BucketsViewModel(private val db: MoneyBrainDatabase) : ViewModel() {
     val buckets = db.bucketDao().observeAll()
     val plans = db.bucketPlanDao().observeAll()
-    private val currentMonth = YearMonth.now().toString()
-    val status = combine(buckets, db.bucketAllocationDao().observeMonth(currentMonth), db.transactionDao().observeAll(), db.categoryDao().observeAll(), db.recurringDao().observeAll()) { bs, allocations, txs, categories, recurring ->
-        val month = YearMonth.parse(currentMonth)
-        bs.map { b -> BucketStatus(b, allocations.filter { it.bucketId == b.id }.sumOf { it.amountPaise }, txs.filter { it.direction == "OUT" && YearMonth.from(Instant.ofEpochMilli(it.occurredAt).atZone(ZoneId.systemDefault())).toString() == currentMonth && (it.bucketId == b.id || (it.bucketId == null && categories.firstOrNull { c -> c.id == it.categoryId }?.bucketId == b.id)) }.sumOf { it.amountPaise }, RecurringMath.reservedForBucket(recurring.map { it.toItem() }, month, b.id)) }
-    }
+    private val currentMonth = MutableStateFlow(YearMonth.now().toString())
+    val status = currentMonth.flatMapLatest { month -> combine(buckets, db.bucketAllocationDao().observeMonth(month), db.transactionDao().observeAll(), db.categoryDao().observeAll(), db.recurringDao().observeAll()) { bs, allocations, txs, categories, recurring -> bucketStatuses(bs, allocations, txs, categories, recurring, month) } }
     val salaryCandidates = combine(db.transactionDao().observeAll(), db.bucketAllocationDao().observeSourceTransactionIds()) { txs, sources ->
-        txs.filter { SalaryDetector.looksLikeSalary(it.direction, it.merchant) && YearMonth.from(Instant.ofEpochMilli(it.occurredAt).atZone(ZoneId.systemDefault())).toString() == currentMonth && it.id !in sources }
+        txs.filter { SalaryDetector.looksLikeSalary(it.direction, it.merchant) && YearMonth.from(Instant.ofEpochMilli(it.occurredAt).atZone(ZoneId.systemDefault())).toString() == currentMonth.value && it.id !in sources }
     }
     private val _messages = Channel<BucketMessage>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
+    fun refreshMonth() { currentMonth.value = YearMonth.now().toString() }
 
     fun addBucket(name: String) = viewModelScope.launch {
         if (name.isNotBlank()) {

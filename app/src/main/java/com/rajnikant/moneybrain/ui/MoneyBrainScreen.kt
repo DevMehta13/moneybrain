@@ -39,6 +39,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -98,6 +100,12 @@ import com.rajnikant.moneybrain.viewmodel.TimelineItem
 import com.rajnikant.moneybrain.viewmodel.TimelineEntry
 import com.rajnikant.moneybrain.viewmodel.TimelineViewModel
 import com.rajnikant.moneybrain.viewmodel.TransactionEditorViewModel
+import com.rajnikant.moneybrain.summary.activeTripSummary
+import com.rajnikant.moneybrain.summary.peopleSummary
+import com.rajnikant.moneybrain.summary.upcomingRecurring
+import com.rajnikant.moneybrain.summary.bucketStatuses
+import com.rajnikant.moneybrain.summary.detectedRecurring
+import com.rajnikant.moneybrain.summary.tripTotal
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -108,6 +116,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val timelineRoute = "timeline"
+private const val overviewRoute = "overview"
 private const val settingsRoute = "settings"
 private const val activityRoute = "activity"
 private const val bucketsRoute = "buckets"
@@ -136,8 +145,8 @@ fun MoneyBrainScreen() {
     }
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
-    val route = entry?.destination?.route ?: timelineRoute
-    val isTopLevel = route == timelineRoute || route == activityRoute || route == bucketsRoute || route == recurringRoute || route == settingsRoute
+    val route = entry?.destination?.route ?: overviewRoute
+    val isTopLevel = route == overviewRoute || route == timelineRoute || route == bucketsRoute || route == recurringRoute || route == settingsRoute
 
     Scaffold(
         bottomBar = {
@@ -148,16 +157,17 @@ fun MoneyBrainScreen() {
         floatingActionButton = {
             if (route == timelineRoute) {
                 FloatingActionButton(onClick = { navController.navigate(addRoute) }) {
-                    Text("+")
+                    Icon(painterResource(android.R.drawable.ic_input_add), "Add transaction")
                 }
             }
         },
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = timelineRoute,
+            startDestination = overviewRoute,
             modifier = Modifier.padding(innerPadding),
         ) {
+            composable(overviewRoute) { OverviewScreen(database, onBuckets = { navController.navigateTopLevel(bucketsRoute) }, onRecurring = { navController.navigateTopLevel(recurringRoute) }, onTrip = { navController.navigate("trip/$it") }, onPeople = { navController.navigate(peopleRoute) }, onTransaction = { navController.navigate("edit/$it") }, onTimeline = { navController.navigateTopLevel(timelineRoute) }, onActivity = { navController.navigate(activityRoute) }) }
             composable(timelineRoute) {
                 val viewModel: TimelineViewModel = viewModel(factory = factory)
                 TimelineScreen(viewModel) { id -> navController.navigate("edit/$id") }
@@ -223,28 +233,58 @@ fun MoneyBrainScreen() {
 private fun BottomBar(navController: NavHostController, route: String) {
     NavigationBar {
         NavigationBarItem(
+            selected = route == overviewRoute,
+            onClick = { navController.navigateTopLevel(overviewRoute) },
+            icon = { Icon(painterResource(android.R.drawable.ic_menu_view), null) },
+            label = { Text("Overview") },
+        )
+        NavigationBarItem(
             selected = route == timelineRoute,
             onClick = { navController.navigateTopLevel(timelineRoute) },
-            icon = { Text("•") },
+            icon = { Icon(painterResource(android.R.drawable.ic_menu_agenda), null) },
             label = { Text("Timeline") },
         )
         NavigationBarItem(
-            selected = route == activityRoute,
-            onClick = { navController.navigateTopLevel(activityRoute) },
-            icon = { Text("•") },
-            label = { Text("Activity") },
-        )
-        NavigationBarItem(
             selected = route == bucketsRoute,
-            onClick = { navController.navigateTopLevel(bucketsRoute) }, icon = { Text("•") }, label = { Text("Buckets") },
+            onClick = { navController.navigateTopLevel(bucketsRoute) }, icon = { Icon(painterResource(android.R.drawable.ic_menu_manage), null) }, label = { Text("Buckets") },
         )
-        NavigationBarItem(selected = route == recurringRoute, onClick = { navController.navigateTopLevel(recurringRoute) }, icon = { Text("•") }, label = { Text("Recurring") })
+        NavigationBarItem(selected = route == recurringRoute, onClick = { navController.navigateTopLevel(recurringRoute) }, icon = { Icon(painterResource(android.R.drawable.ic_popup_sync), null) }, label = { Text("Recurring") })
         NavigationBarItem(
             selected = route == settingsRoute,
             onClick = { navController.navigateTopLevel(settingsRoute) },
-            icon = { Text("•") },
+            icon = { Icon(painterResource(android.R.drawable.ic_menu_preferences), null) },
             label = { Text("Settings") },
         )
+    }
+}
+
+@Composable
+private fun OverviewScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBuckets: () -> Unit, onRecurring: () -> Unit, onTrip: (Long) -> Unit, onPeople: () -> Unit, onTransaction: (Long) -> Unit, onTimeline: () -> Unit, onActivity: () -> Unit) {
+    val buckets by database.bucketDao().observeAll().collectAsState(initial = emptyList())
+    val allocations by database.bucketAllocationDao().observeMonth(java.time.YearMonth.now().toString()).collectAsState(initial = emptyList())
+    val transactions by database.transactionDao().observeAll().collectAsState(initial = emptyList())
+    val categories by database.categoryDao().observeAll().collectAsState(initial = emptyList())
+    val recurring by database.recurringDao().observeAll().collectAsState(initial = emptyList())
+    val dismissed by database.recurringDismissedDao().observeAll().collectAsState(initial = emptyList())
+    val trips by database.tripDao().observeAll().collectAsState(initial = emptyList())
+    val peopleBalances by database.personLedgerDao().observeBalances().collectAsState(initial = emptyList())
+    val unresolved by database.unparsedSmsDao().observeUnresolved().collectAsState(initial = emptyList())
+    val statuses = bucketStatuses(buckets, allocations, transactions, categories, recurring, java.time.YearMonth.now().toString())
+    val upcoming = upcomingRecurring(recurring, java.time.LocalDate.now().toString())
+    val trip = activeTripSummary(trips, transactions)
+    val people = peopleSummary(peopleBalances)
+    val uncategorised = transactions.count { it.categoryId == null }
+    val detected = detectedRecurring(recurring, transactions, dismissed, ZoneId.systemDefault())
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (unresolved.isNotEmpty() || uncategorised > 0 || detected.isNotEmpty()) item { Card { Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) { if (unresolved.isNotEmpty()) TextButton(onClick = onActivity) { Text("${unresolved.size} unrecognised SMS") }; if (uncategorised > 0) TextButton(onClick = onTimeline) { Text("$uncategorised uncategorised") }; if (detected.isNotEmpty()) TextButton(onClick = onRecurring) { Text("${detected.size} detected recurring") } } } }
+        item { Text("Overview", style = MaterialTheme.typography.headlineSmall) }
+        item { Card(Modifier.fillMaxWidth().clickable(onClick = onBuckets)) { Column(Modifier.padding(12.dp)) { Text("Buckets", fontWeight = FontWeight.Medium); statuses.forEach { status -> Text("${status.bucket.name} · Remaining ${Money.formatPaise(status.remaining)}", color = if (status.remaining < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) } } } }
+        item { Card(Modifier.fillMaxWidth().clickable(onClick = onRecurring)) { Column(Modifier.padding(12.dp)) { Text("Upcoming bills", fontWeight = FontWeight.Medium); Text("This month ${Money.formatPaise(recurring.filter { it.status == RecurringStatus.ACTIVE && it.nextDue.startsWith(java.time.YearMonth.now().toString()) }.sumOf { it.expectedAmountPaise })}"); upcoming.take(3).forEach { Text("${it.name} · ${Money.formatPaise(it.expectedAmountPaise)} · ${it.nextDueIso}") } } } }
+        trip?.let { active -> item { Card(Modifier.fillMaxWidth().clickable { onTrip(active.trip.id) }) { Column(Modifier.padding(12.dp)) { Text("Active trip", fontWeight = FontWeight.Medium); Text("${active.trip.name} · ${Money.formatPaise(active.total)}") } } } }
+        item { Card(Modifier.fillMaxWidth().clickable(onClick = onPeople)) { Column(Modifier.padding(12.dp)) { Text("People", fontWeight = FontWeight.Medium); Text("Owed to you ${Money.formatPaise(people.owedToYou)} · You owe ${Money.formatPaise(people.youOwe)}") } } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Recent transactions", style = MaterialTheme.typography.titleMedium); TextButton(onClick = onTimeline) { Text("See all") } } }
+        items(transactions.take(5), key = { it.id }) { transaction -> val category = categories.firstOrNull { it.id == transaction.categoryId }; TransactionRow(TimelineItem(transaction, null, category), onClick = { onTransaction(transaction.id) }) }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Recent activity", style = MaterialTheme.typography.titleMedium); TextButton(onClick = onActivity) { Text("See all") } } }
     }
 }
 
@@ -334,9 +374,9 @@ private fun RecurringScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDa
     var name by remember { mutableStateOf("") }; var amount by remember { mutableStateOf("") }; var due by remember { mutableStateOf("") }; var merchantKey by remember { mutableStateOf("") }
     var cadence by remember { mutableStateOf(Cadences.MONTHLY) }; var bucketId by remember { mutableStateOf<Long?>(null) }; var editingId by remember { mutableStateOf<Long?>(null) }; var cancelId by remember { mutableStateOf<Long?>(null) }; var deleteId by remember { mutableStateOf<Long?>(null) }
     val today = java.time.LocalDate.now().toString()
-    val upcoming = RecurringMath.dueWithin(items.map { it.toItem() }, today, 30)
+    val upcoming = upcomingRecurring(items, today, 30)
     val sixMonthsAgo = System.currentTimeMillis() - 183L * 24 * 60 * 60 * 1000
-    val candidates = RecurringDetector.detect(transactions.filter { it.direction == "OUT" && it.merchant != null && it.occurredAt >= sixMonthsAgo }.mapNotNull { tx -> CaptureProcessor.merchantKey(tx.merchant)?.let { Occurrence(it, tx.amountPaise, tx.occurredAt) } }, ZoneId.systemDefault()).filter { candidate -> items.none { it.merchantKey == candidate.merchantKey && it.status != RecurringStatus.CANCELLED } && dismissed.none { it.merchantKey == candidate.merchantKey } }
+    val candidates = detectedRecurring(items, transactions, dismissed, ZoneId.systemDefault())
     LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { Text("Recurring", style = MaterialTheme.typography.headlineSmall); Text("This month: ${Money.formatPaise(items.filter { it.status == RecurringStatus.ACTIVE && it.nextDue.startsWith(java.time.YearMonth.now().toString()) }.sumOf { it.expectedAmountPaise })}") }
         item { Text("Upcoming", style = MaterialTheme.typography.titleMedium) }
@@ -383,6 +423,8 @@ private fun NavHostController.navigateTopLevel(route: String) {
 @Composable
 private fun TimelineScreen(viewModel: TimelineViewModel, onTransaction: (Long) -> Unit) {
     val entries by viewModel.entries.collectAsState(initial = emptyList())
+    val filters by viewModel.filterState.collectAsState()
+    val accounts by viewModel.accounts.collectAsState(initial = emptyList()); val categories by viewModel.categories.collectAsState(initial = emptyList()); val buckets by viewModel.buckets.collectAsState(initial = emptyList()); val trips by viewModel.trips.collectAsState(initial = emptyList()); val people by viewModel.people.collectAsState(initial = emptyList())
     if (entries.isEmpty()) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -396,6 +438,9 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onTransaction: (Long) -
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item { OutlinedTextField(filters.search, { value -> viewModel.updateFilters { it.copy(search = value) } }, label = { Text("Search transactions") }, modifier = Modifier.fillMaxWidth().padding(16.dp)) }
+        item { androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { FilterChip(filters.uncategorised, { viewModel.updateFilters { it.copy(uncategorised = !it.uncategorised) } }, label = { Text("Uncategorised") }); listOf("OUT", "IN").forEach { direction -> FilterChip(filters.direction == direction, { viewModel.updateFilters { it.copy(direction = if (it.direction == direction) null else direction) } }, label = { Text(direction) }) } } }
+        item { FilterRow("Account", accounts.map { it.id to it.name }, filters.accountId) { id -> viewModel.updateFilters { it.copy(accountId = id) } }; FilterRow("Category", categories.map { it.id to it.name }, filters.categoryId) { id -> viewModel.updateFilters { it.copy(categoryId = id) } }; FilterRow("Bucket", buckets.map { it.id to it.name }, filters.bucketId) { id -> viewModel.updateFilters { it.copy(bucketId = id) } }; FilterRow("Trip", trips.map { it.id to it.name }, filters.tripId) { id -> viewModel.updateFilters { it.copy(tripId = id) } }; FilterRow("Person", people.map { it.id to it.name }, filters.personId) { id -> viewModel.updateFilters { it.copy(personId = id) } } }
         items(
             items = entries,
             key = { entry ->
@@ -418,6 +463,11 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onTransaction: (Long) -
             }
         }
     }
+}
+
+@Composable private fun FilterRow(label: String, options: List<Pair<Long, String>>, selected: Long?, onSelect: (Long?) -> Unit) {
+    if (options.isEmpty()) return
+    androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { Text(label, modifier = Modifier.padding(top = 8.dp)); options.forEach { (id, name) -> FilterChip(selected == id, { onSelect(if (selected == id) null else id) }, label = { Text(name) }) } }
 }
 
 @Composable
@@ -782,8 +832,8 @@ private fun SettingsScreen(onAccounts: () -> Unit, onCapture: () -> Unit, onCate
 }
 
 @Composable private fun PeopleScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBack: () -> Unit, onPerson: (Long) -> Unit) {
-    val people by database.personDao().observeAll().collectAsState(initial = emptyList()); val balances by database.personLedgerDao().observeBalances().collectAsState(initial = emptyList()); val scope = rememberCoroutineScope(); var name by remember { mutableStateOf("") }; val map = balances.associate { it.personId to it.balance }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { item { TextButton(onClick = onBack) { Text("Back") }; Text("People", style = MaterialTheme.typography.headlineSmall); Text("Owed to you ${Money.formatPaise(map.values.filter { it > 0 }.sum())} · You owe ${Money.formatPaise(-map.values.filter { it < 0 }.sum())}") }; item { Row { OutlinedTextField(name, { name = it }, label = { Text("New person") }, modifier = Modifier.weight(1f)); Button(onClick = { if (name.isNotBlank()) scope.launch { database.personDao().insert(com.rajnikant.moneybrain.data.PersonEntity(name = name.trim(), createdAt = System.currentTimeMillis())); name = "" } }) { Text("Add") } } }; items(people, key = { it.id }) { person -> val balance = map[person.id] ?: 0; Card(Modifier.fillMaxWidth().clickable { onPerson(person.id) }) { Column(Modifier.padding(12.dp)) { Text(person.name); Text(if (balance > 0) "owes you ${Money.formatPaise(balance)}" else if (balance < 0) "you owe ${Money.formatPaise(-balance)}" else "settled") } } } }
+    val people by database.personDao().observeAll().collectAsState(initial = emptyList()); val balances by database.personLedgerDao().observeBalances().collectAsState(initial = emptyList()); val scope = rememberCoroutineScope(); var name by remember { mutableStateOf("") }; val map = balances.associate { it.personId to it.balance }; val summary = peopleSummary(balances)
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { item { TextButton(onClick = onBack) { Text("Back") }; Text("People", style = MaterialTheme.typography.headlineSmall); Text("Owed to you ${Money.formatPaise(summary.owedToYou)} · You owe ${Money.formatPaise(summary.youOwe)}") }; item { Row { OutlinedTextField(name, { name = it }, label = { Text("New person") }, modifier = Modifier.weight(1f)); Button(onClick = { if (name.isNotBlank()) scope.launch { database.personDao().insert(com.rajnikant.moneybrain.data.PersonEntity(name = name.trim(), createdAt = System.currentTimeMillis())); name = "" } }) { Text("Add") } } }; items(people, key = { it.id }) { person -> val balance = map[person.id] ?: 0; Card(Modifier.fillMaxWidth().clickable { onPerson(person.id) }) { Column(Modifier.padding(12.dp)) { Text(person.name); Text(if (balance > 0) "owes you ${Money.formatPaise(balance)}" else if (balance < 0) "you owe ${Money.formatPaise(-balance)}" else "settled") } } } }
 }
 
 @Composable private fun PersonDetailScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, personId: Long, onBack: () -> Unit) {
@@ -796,12 +846,13 @@ private fun SettingsScreen(onAccounts: () -> Unit, onCapture: () -> Unit, onCate
 }
 
 @Composable private fun TripsScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBack: () -> Unit, onTrip: (Long) -> Unit) {
-    val trips by database.tripDao().observeAll().collectAsState(initial = emptyList()); val scope = rememberCoroutineScope(); val snackbar = remember { SnackbarHostState() }; var name by remember { mutableStateOf("") }; var start by remember { mutableStateOf("") }; var end by remember { mutableStateOf("") }; val active = trips.firstOrNull { it.endedAt == null }
+    val trips by database.tripDao().observeAll().collectAsState(initial = emptyList()); val scope = rememberCoroutineScope(); val snackbar = remember { SnackbarHostState() }; var name by remember { mutableStateOf("") }; var start by remember { mutableStateOf("") }; var end by remember { mutableStateOf("") }; var deleteTrip by remember { mutableStateOf<Long?>(null) }; val active = trips.firstOrNull { it.endedAt == null }
+    deleteTrip?.let { id -> AlertDialog(onDismissRequest = { deleteTrip = null }, title = { Text("Delete trip?") }, text = { Text("Its transactions will stay, but will no longer belong to this trip.") }, confirmButton = { TextButton(onClick = { scope.launch { database.withTransaction { database.transactionDao().clearTrip(id); database.tripDao().deleteById(id) }; deleteTrip = null } }) { Text("Delete") } }, dismissButton = { TextButton(onClick = { deleteTrip = null }) { Text("Keep") } }) }
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { item { TextButton(onClick = onBack) { Text("Back") }; Text("Trips", style = MaterialTheme.typography.headlineSmall) }; if (active != null) item { Card { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("Active: ${active.name}"); Button(onClick = { scope.launch { database.tripDao().stop(active.id, System.currentTimeMillis()) } }) { Text("Stop trip") } } } }; item { OutlinedTextField(name, { name = it }, label = { Text("Trip name") }, modifier = Modifier.fillMaxWidth()); Button(onClick = { if (active != null) scope.launch { snackbar.showSnackbar("Stop ${active.name} before starting another trip") } else if (name.isNotBlank()) scope.launch { val now = System.currentTimeMillis(); database.tripDao().insert(com.rajnikant.moneybrain.data.TripEntity(name = name.trim(), startedAt = now, endedAt = null, createdAt = now)); name = "" } }, enabled = name.isNotBlank()) { Text("Start now") } }; item { Text("Or create a dated trip", fontWeight = FontWeight.Medium); OutlinedTextField(start, { start = it }, label = { Text("Start (YYYY-MM-DD HH:MM)") }, modifier = Modifier.fillMaxWidth()); OutlinedTextField(end, { end = it }, label = { Text("End (YYYY-MM-DD HH:MM)") }, modifier = Modifier.fillMaxWidth()); Button(onClick = { val s = parseTripDate(start); val e = parseTripDate(end); if (name.isNotBlank() && s != null && e != null && e >= s) scope.launch { database.tripDao().insert(com.rajnikant.moneybrain.data.TripEntity(name = name.trim(), startedAt = s, endedAt = e, createdAt = System.currentTimeMillis())); name = ""; start = ""; end = "" } }, enabled = name.isNotBlank() && parseTripDate(start) != null && parseTripDate(end) != null) { Text("Create dated trip") } }; items(trips, key = { it.id }) { trip -> Card(Modifier.fillMaxWidth().clickable { onTrip(trip.id) }) { Text("${trip.name} · ${if (trip.endedAt == null) "Active" else "Ended"}", Modifier.padding(12.dp)) } } } }
 }
 
 @Composable private fun TripDetailScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, tripId: Long, onBack: () -> Unit) {
-    val trips by database.tripDao().observeAll().collectAsState(initial = emptyList()); val transactions by database.transactionDao().observeAll().collectAsState(initial = emptyList()); val categories by database.categoryDao().observeAll().collectAsState(initial = emptyList()); val ledger by database.personLedgerDao().observeAll().collectAsState(initial = emptyList()); val trip = trips.firstOrNull { it.id == tripId } ?: return; val spend = transactions.filter { it.tripId == tripId && it.direction == "OUT" }; val transactionIds = spend.map { it.id }.toSet(); val total = spend.sumOf { it.amountPaise }; val owed = ledger.filter { it.kind == LedgerKinds.SPLIT && it.transactionId in transactionIds }.sumOf { it.amountPaise }; val names = categories.associate { it.id to it.name }
+    val trips by database.tripDao().observeAll().collectAsState(initial = emptyList()); val transactions by database.transactionDao().observeAll().collectAsState(initial = emptyList()); val categories by database.categoryDao().observeAll().collectAsState(initial = emptyList()); val ledger by database.personLedgerDao().observeAll().collectAsState(initial = emptyList()); val trip = trips.firstOrNull { it.id == tripId } ?: return; val spend = transactions.filter { it.tripId == tripId && it.direction == "OUT" }; val transactionIds = spend.map { it.id }.toSet(); val total = tripTotal(transactions, tripId); val owed = ledger.filter { it.kind == LedgerKinds.SPLIT && it.transactionId in transactionIds }.sumOf { it.amountPaise }; val names = categories.associate { it.id to it.name }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { item { TextButton(onClick = onBack) { Text("Back") }; Text(trip.name, style = MaterialTheme.typography.headlineSmall); Text("Total ${Money.formatPaise(total)}"); Text("Owed to you within this trip ${Money.formatPaise(owed)}") }; item { Text("By category", fontWeight = FontWeight.Medium) }; items(spend.groupBy { names[it.categoryId] ?: "Uncategorised" }.toList(), key = { it.first }) { (category, rows) -> Text("$category · ${Money.formatPaise(rows.sumOf { it.amountPaise })}") }; item { Text("By day", fontWeight = FontWeight.Medium) }; items(spend.groupBy { Instant.ofEpochMilli(it.occurredAt).atZone(ZoneId.systemDefault()).toLocalDate().toString() }.toList(), key = { it.first }) { (day, rows) -> Text("$day · ${Money.formatPaise(rows.sumOf { it.amountPaise })}") }; item { Text("Transactions", fontWeight = FontWeight.Medium) }; items(spend, key = { it.id }) { tx -> Card { Column(Modifier.padding(12.dp)) { Text(tx.merchant ?: "Expense"); Text(Money.formatPaise(tx.amountPaise)); Text(Instant.ofEpochMilli(tx.occurredAt).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("d MMM yyyy")), style = MaterialTheme.typography.bodySmall) } } } }
 }
 

@@ -29,6 +29,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -39,6 +40,7 @@ data class TimelineItem(
     val account: AccountEntity?,
     val category: CategoryEntity?,
 )
+data class TimelineFilters(val search: String = "", val accountId: Long? = null, val categoryId: Long? = null, val bucketId: Long? = null, val tripId: Long? = null, val personId: Long? = null, val direction: String? = null, val uncategorised: Boolean = false)
 
 sealed interface TimelineEntry {
     data class DayHeader(val date: LocalDate) : TimelineEntry
@@ -49,15 +51,33 @@ class TimelineViewModel(
     transactionDao: TransactionDao,
     accountDao: AccountDao,
     categoryDao: CategoryDao,
+    private val database: MoneyBrainDatabase,
 ) : ViewModel() {
+    val accounts = accountDao.observeAll(); val categories = categoryDao.observeAll(); val buckets = database.bucketDao().observeAll(); val trips = database.tripDao().observeAll(); val people = database.personDao().observeAll()
+    private val filters = MutableStateFlow(TimelineFilters())
+    val filterState = filters
+    fun updateFilters(transform: (TimelineFilters) -> TimelineFilters) { filters.value = transform(filters.value) }
     val entries: Flow<List<TimelineEntry>> = combine(
         transactionDao.observeAll(),
         accountDao.observeAll(),
         categoryDao.observeAll(),
-    ) { transactions, accounts, categories ->
+        database.personLedgerDao().observeAll(), filters,
+    ) { transactions, accounts, categories, ledger, filter ->
         val accountsById = accounts.associateBy { it.id }
         val categoriesById = categories.associateBy { it.id }
-        val timelineItems = transactions.map { transaction ->
+        val matchingTransactionIds = filter.personId?.let { person -> ledger.filter { it.personId == person && it.kind in setOf("SPLIT", "LENT", "SETTLEMENT") }.mapNotNull { it.transactionId }.toSet() }
+        val timelineItems = transactions.filter { transaction ->
+            val category = transaction.categoryId?.let(categoriesById::get)
+            val searchable = listOfNotNull(transaction.merchant, transaction.notes, category?.name).joinToString(" ").lowercase()
+            (filter.search.isBlank() || filter.search.lowercase() in searchable) &&
+                (filter.accountId == null || transaction.accountId == filter.accountId) &&
+                (filter.categoryId == null || transaction.categoryId == filter.categoryId) &&
+                (filter.bucketId == null || transaction.bucketId == filter.bucketId || (transaction.bucketId == null && category?.bucketId == filter.bucketId)) &&
+                (filter.tripId == null || transaction.tripId == filter.tripId) &&
+                (matchingTransactionIds == null || transaction.id in matchingTransactionIds) &&
+                (filter.direction == null || transaction.direction == filter.direction) &&
+                (!filter.uncategorised || transaction.categoryId == null)
+        }.map { transaction ->
             TimelineItem(
                 transaction = transaction,
                 account = accountsById[transaction.accountId],
@@ -284,7 +304,7 @@ class MoneyBrainViewModelFactory(
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
         modelClass.isAssignableFrom(TimelineViewModel::class.java) ->
-            TimelineViewModel(transactionDao, accountDao, categoryDao) as T
+            TimelineViewModel(transactionDao, accountDao, categoryDao, database) as T
         modelClass.isAssignableFrom(TransactionEditorViewModel::class.java) ->
             TransactionEditorViewModel(
                 transactionDao,

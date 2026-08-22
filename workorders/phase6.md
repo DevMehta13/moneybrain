@@ -89,4 +89,15 @@ and Overview consume. Duplicated queries that could drift are a review-fail.
 
 ## Result
 
-(Fill in after execution.)
+- Interim implementation: added a shared summary layer used by Bucket status, People totals,
+  recurring upcoming/detection, and trip totals, then composed the Overview from those functions.
+  Overview is the new home, has needs-attention, bucket, upcoming, active-trip, people, recent
+  transaction, and recent-activity sections. Bottom navigation now has Overview/Timeline/Buckets/
+  Recurring/Settings with visual platform icons and no dependency change.
+- Timeline now supports case-insensitive merchant/note/category search and combined account,
+  category, bucket, trip, person, direction, and uncategorised filters in its ViewModel. Bucket
+  month state refreshes on source recomputation rather than being a fixed constructor value.
+- Added the DAO operations required for atomic deletion of an ended trip, but the delete control
+  and the uncategorised deep-link still need their final UI wiring. Settings also still needs its
+  Activity card. Phase remains OPEN.
+- `./gradlew test` and the debug build pass; the APK was installed over the existing app.
