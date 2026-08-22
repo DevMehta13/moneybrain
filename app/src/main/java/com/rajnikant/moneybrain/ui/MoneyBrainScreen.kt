@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -56,6 +57,7 @@ import com.rajnikant.moneybrain.money.Money
 import com.rajnikant.moneybrain.viewmodel.AccountsViewModel
 import com.rajnikant.moneybrain.viewmodel.MoneyBrainViewModelFactory
 import com.rajnikant.moneybrain.viewmodel.TimelineItem
+import com.rajnikant.moneybrain.viewmodel.TimelineEntry
 import com.rajnikant.moneybrain.viewmodel.TimelineViewModel
 import com.rajnikant.moneybrain.viewmodel.TransactionEditorViewModel
 import java.time.Instant
@@ -151,23 +153,31 @@ private fun BottomBar(navController: NavHostController, route: String) {
     NavigationBar {
         NavigationBarItem(
             selected = route == timelineRoute,
-            onClick = { navController.navigate(timelineRoute) { launchSingleTop = true } },
+            onClick = { navController.navigateTopLevel(timelineRoute) },
             icon = { Text("•") },
             label = { Text("Timeline") },
         )
         NavigationBarItem(
             selected = route == settingsRoute,
-            onClick = { navController.navigate(settingsRoute) { launchSingleTop = true } },
+            onClick = { navController.navigateTopLevel(settingsRoute) },
             icon = { Text("•") },
             label = { Text("Settings") },
         )
     }
 }
 
+private fun NavHostController.navigateTopLevel(route: String) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
 @Composable
 private fun TimelineScreen(viewModel: TimelineViewModel, onTransaction: (Long) -> Unit) {
-    val items by viewModel.items.collectAsState(initial = emptyList())
-    if (items.isEmpty()) {
+    val entries by viewModel.entries.collectAsState(initial = emptyList())
+    if (entries.isEmpty()) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
@@ -180,18 +190,26 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onTransaction: (Long) -
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        var lastDate: LocalDate? = null
-        items(items, key = { it.transaction.id }) { item ->
-            val date = item.transaction.occurredAt.toLocalDate()
-            if (date != lastDate) {
-                lastDate = date
-                Text(
-                    text = date.timelineHeader(),
+        items(
+            items = entries,
+            key = { entry ->
+                when (entry) {
+                    is TimelineEntry.DayHeader -> "h-${entry.date}"
+                    is TimelineEntry.Row -> "t-${entry.item.transaction.id}"
+                }
+            },
+        ) { entry ->
+            when (entry) {
+                is TimelineEntry.DayHeader -> Text(
+                    text = entry.date.timelineHeader(),
                     modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
                     style = MaterialTheme.typography.labelLarge,
                 )
+                is TimelineEntry.Row -> {
+                    val item = entry.item
+                    TransactionRow(item, onClick = { onTransaction(item.transaction.id) })
+                }
             }
-            TransactionRow(item, onClick = { onTransaction(item.transaction.id) })
         }
     }
 }
@@ -444,10 +462,6 @@ private fun AccountTypePicker(type: String, onType: (String) -> Unit) {
         }
     }
 }
-
-private fun Long.toLocalDate(): LocalDate = Instant.ofEpochMilli(this)
-    .atZone(ZoneId.systemDefault())
-    .toLocalDate()
 
 private fun LocalDate.timelineHeader(): String = when (this) {
     LocalDate.now() -> "Today"

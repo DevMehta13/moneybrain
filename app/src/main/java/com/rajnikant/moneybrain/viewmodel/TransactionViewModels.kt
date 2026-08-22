@@ -14,6 +14,7 @@ import com.rajnikant.moneybrain.data.TransactionDao
 import com.rajnikant.moneybrain.data.TransactionEntity
 import com.rajnikant.moneybrain.money.Money
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -30,27 +31,47 @@ data class TimelineItem(
     val category: CategoryEntity?,
 )
 
+sealed interface TimelineEntry {
+    data class DayHeader(val date: LocalDate) : TimelineEntry
+    data class Row(val item: TimelineItem) : TimelineEntry
+}
+
 class TimelineViewModel(
     transactionDao: TransactionDao,
     accountDao: AccountDao,
     categoryDao: CategoryDao,
 ) : ViewModel() {
-    val items: Flow<List<TimelineItem>> = combine(
+    val entries: Flow<List<TimelineEntry>> = combine(
         transactionDao.observeAll(),
         accountDao.observeAll(),
         categoryDao.observeAll(),
     ) { transactions, accounts, categories ->
         val accountsById = accounts.associateBy { it.id }
         val categoriesById = categories.associateBy { it.id }
-        transactions.map { transaction ->
+        val timelineItems = transactions.map { transaction ->
             TimelineItem(
                 transaction = transaction,
                 account = accountsById[transaction.accountId],
                 category = transaction.categoryId?.let(categoriesById::get),
             )
         }
+        buildList {
+            var previousDate: LocalDate? = null
+            timelineItems.forEach { item ->
+                val date = item.transaction.occurredAt.toLocalDate()
+                if (date != previousDate) {
+                    add(TimelineEntry.DayHeader(date))
+                    previousDate = date
+                }
+                add(TimelineEntry.Row(item))
+            }
+        }
     }
 }
+
+private fun Long.toLocalDate(): LocalDate = Instant.ofEpochMilli(this)
+    .atZone(ZoneId.systemDefault())
+    .toLocalDate()
 
 data class TransactionEditorState(
     val amount: String = "",

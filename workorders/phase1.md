@@ -155,3 +155,15 @@ Implemented the Phase 1 database and manual-entry foundation:
   phone intercepted the adb-driven touch input; its accessibility configuration was left unchanged.
   Manual smoke testing of add, edit, delete, and persistence across a phone restart remains for
   Rajnikant before the phase gate can be declared passed.
+
+### Fix round 1
+
+- Reworked timeline rendering so `TimelineViewModel` emits stable `TimelineEntry` values with
+  day headers precomputed from the already newest-first transaction stream. The LazyColumn now
+  renders only those entries with stable `h-<date>` and `t-<id>` keys; it has no date state or
+  grouping logic during composition.
+- Updated bottom-tab navigation to use the standard top-level pattern: pop to the graph start
+  destination with saved state, launch a single top destination, and restore saved state. Tab
+  switches no longer accumulate history in Back navigation.
+- `./gradlew test` and `./gradlew assembleDebug` both passed. The corrected APK was installed
+  over the existing app on the Pixel 9 and launched successfully.
