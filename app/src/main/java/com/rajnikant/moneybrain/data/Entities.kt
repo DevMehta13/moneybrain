@@ -59,6 +59,7 @@ data class TransactionEntity(
     val referenceNo: String? = null,
     val createdAt: Long,
     val bucketId: Long? = null,
+    val tripId: Long? = null,
 )
 
 @Entity(tableName = "buckets")
@@ -75,6 +76,10 @@ data class RecurringEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, va
 
 @Entity(tableName = "recurring_dismissed")
 data class RecurringDismissedEntity(@PrimaryKey val merchantKey: String, val dismissedAt: Long)
+
+@Entity(tableName = "trips") data class TripEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String, val startedAt: Long, val endedAt: Long?, val createdAt: Long)
+@Entity(tableName = "people") data class PersonEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String, val createdAt: Long)
+@Entity(tableName = "person_ledger", foreignKeys = [ForeignKey(entity = PersonEntity::class, parentColumns = ["id"], childColumns = ["personId"], onDelete = ForeignKey.RESTRICT)], indices = [Index(value = ["personId"]), Index(value = ["transactionId"])]) data class PersonLedgerEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val personId: Long, val amountPaise: Long, val kind: String, val transactionId: Long?, val note: String?, val createdAt: Long)
 
 @Entity(
     tableName = "merchant_rules",

@@ -132,4 +132,10 @@ ALTER TABLE transactions ADD COLUMN tripId INTEGER;  -- plain column, NO Room Fo
 
 ## Result
 
-(Fill in after execution.)
+- Implemented the v4→v5 migration, entities, DAOs, Room capture/undo adapters, and schema
+  export. Capture auto-filing now has the required Room-backed active-trip, active-recurring, and
+  transaction-trip operations; undo can restore a transaction's previous trip. The APK installed
+  over the live v4 app successfully, confirming migration startup.
+- `./gradlew test` and debug build pass with architect-owned files unmodified.
+- Remaining before Phase 5 completion: People and Trips screens, transaction split/editor UI,
+  manual trip assignment, and their smoke checks. Phase remains open.

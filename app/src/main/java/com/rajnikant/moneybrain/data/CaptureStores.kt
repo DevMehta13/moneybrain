@@ -8,6 +8,8 @@ import com.rajnikant.moneybrain.capture.NewTransaction
 import com.rajnikant.moneybrain.capture.RuleStore
 import com.rajnikant.moneybrain.capture.UndoStore
 import com.rajnikant.moneybrain.buckets.BucketStore
+import com.rajnikant.moneybrain.capture.ActiveTrip
+import kotlinx.coroutines.flow.first
 
 class RoomCaptureStore(private val database: MoneyBrainDatabase) : CaptureStore {
     private val accounts = database.accountDao()
@@ -22,6 +24,9 @@ class RoomCaptureStore(private val database: MoneyBrainDatabase) : CaptureStore 
         accounts.insert(AccountEntity(name = name, type = type, createdAt = createdAt, bankCode = bankCode))
 
     override suspend fun categoryIdForMerchant(merchantKey: String): Long? = rules.categoryIdForMerchant(merchantKey)
+    override suspend fun activeTrip(atMillis: Long): ActiveTrip? = database.tripDao().activeAt(atMillis)?.let { ActiveTrip(it.id, it.name) }
+    override suspend fun hasActiveRecurringForMerchant(merchantKey: String): Boolean = database.recurringDao().observeAll().first().any { it.merchantKey == merchantKey && it.status == "ACTIVE" }
+    override suspend fun fileTransactionToTrip(transactionId: Long, tripId: Long) { transactions.setTrip(transactionId, tripId) }
 
     override suspend fun insertTransactionIfNew(transaction: NewTransaction): Long? =
         transactions.insertIgnore(
@@ -123,6 +128,7 @@ class RoomUndoStore(private val database: MoneyBrainDatabase) : UndoStore {
     override suspend fun deleteAllocations(ids: List<Long>): Int =
         if (ids.isEmpty()) 0 else database.bucketAllocationDao().deleteIds(ids)
     override suspend fun setRecurringNextDue(id: Long, nextDueIso: String): Boolean = database.recurringDao().setNextDue(id, nextDueIso) > 0
+    override suspend fun setTransactionTrip(id: Long, tripId: Long?): Boolean = transactions.setTrip(id, tripId) > 0
 }
 
 class RoomBucketStore(private val database: MoneyBrainDatabase) : BucketStore {

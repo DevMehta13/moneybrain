@@ -28,6 +28,7 @@ interface TransactionDao {
     @Query("UPDATE transactions SET categoryId = :categoryId WHERE id = :id")
     suspend fun setCategory(id: Long, categoryId: Long?)
     @Query("UPDATE transactions SET bucketId = :bucketId WHERE id = :id") suspend fun setBucket(id: Long, bucketId: Long?)
+    @Query("UPDATE transactions SET tripId = :tripId WHERE id = :id") suspend fun setTrip(id: Long, tripId: Long?): Int
 
     @Query("SELECT * FROM transactions ORDER BY occurredAt DESC, id DESC")
     fun observeAll(): Flow<List<TransactionEntity>>
@@ -35,6 +36,10 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getById(id: Long): TransactionEntity?
 }
+@Dao interface TripDao { @Query("SELECT * FROM trips ORDER BY startedAt DESC") fun observeAll(): Flow<List<TripEntity>>; @Insert suspend fun insert(item: TripEntity): Long; @Query("SELECT * FROM trips WHERE id = :id") suspend fun getById(id: Long): TripEntity?; @Query("UPDATE trips SET endedAt = :at WHERE id = :id") suspend fun stop(id: Long, at: Long): Int; @Query("SELECT * FROM trips WHERE endedAt IS NULL AND startedAt <= :at ORDER BY startedAt DESC LIMIT 1") suspend fun activeAt(at: Long): TripEntity? }
+@Dao interface PersonDao { @Query("SELECT * FROM people ORDER BY name") fun observeAll(): Flow<List<PersonEntity>>; @Insert suspend fun insert(item: PersonEntity): Long; @Query("SELECT * FROM people WHERE id = :id") suspend fun getById(id: Long): PersonEntity? }
+data class PersonBalance(val personId: Long, val balance: Long)
+@Dao interface PersonLedgerDao { @Query("SELECT * FROM person_ledger WHERE personId = :personId ORDER BY createdAt DESC") fun observeForPerson(personId: Long): Flow<List<PersonLedgerEntity>>; @Query("SELECT * FROM person_ledger ORDER BY createdAt DESC") fun observeAll(): Flow<List<PersonLedgerEntity>>; @Insert suspend fun insert(item: PersonLedgerEntity): Long; @Query("SELECT personId, COALESCE(SUM(amountPaise), 0) AS balance FROM person_ledger GROUP BY personId") fun observeBalances(): Flow<List<PersonBalance>> }
 
 @Dao interface RecurringDao {
     @Query("SELECT * FROM recurring ORDER BY nextDue, id") fun observeAll(): Flow<List<RecurringEntity>>
