@@ -254,3 +254,13 @@ Treat unparseable text as its own state with the existing "Enter valid amounts" 
   on the connected Pixel 9. The installed app was force-stopped and cold-launched successfully
   with no AndroidRuntime/Compose exception; this exercised the live v5→v6 upgrade. Schema v6
   is exported at `app/schemas/.../6.json`.
+- Fix round 1 complete. F1 now uses the suspend `TransactionDao.getAll()` query inside the
+  balance-save transaction rather than collecting a Flow while holding the Room transaction.
+  F2 always presents and applies the stored transaction amount, and reports every split outcome.
+  F3 adds coloured signed history amounts plus notes and dates. F4 adds non-blocking warnings
+  for negative take-outs and oversize unallocated splits. F5 makes money-map balance CTAs open
+  Settings → Accounts. F6 reports blank/unparseable split inputs as “Enter valid amounts.”
+- Final verification: full `./gradlew test` passed; debug APK installed on the connected Pixel 9.
+  Live F1 exercise completed: set Cash to ₹10, correct it to ₹12, undo the correction in
+  Activity (Cash returned to ₹10), then undo the initial test snapshot (Cash is again
+  “not tracked”), leaving no test balance behind.

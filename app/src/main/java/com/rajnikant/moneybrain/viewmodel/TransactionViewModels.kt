@@ -24,6 +24,7 @@ import com.rajnikant.moneybrain.people.SplitMath
 import com.rajnikant.moneybrain.recurring.applyRecurringMatch
 import com.rajnikant.moneybrain.buckets.BucketSplitter
 import com.rajnikant.moneybrain.buckets.SplitLine
+import com.rajnikant.moneybrain.buckets.SplitOutcome
 import com.rajnikant.moneybrain.data.RoomBucketStore
 import java.time.Instant
 import java.time.LocalDate
@@ -159,6 +160,9 @@ class TransactionEditorViewModel(
         private set
     private val _finished = Channel<Unit>(Channel.CONFLATED)
     val finished = _finished.receiveAsFlow()
+    private val _messages = Channel<String>(Channel.BUFFERED)
+    val messages = _messages.receiveAsFlow()
+    val storedTransactionAmountPaise: Long? get() = existingTransaction?.amountPaise
 
     init {
         if (transactionId != null) {
@@ -284,8 +288,13 @@ class TransactionEditorViewModel(
     fun applyBucketSplit(lines: List<SplitLine>) {
         val source = existingTransaction ?: return
         viewModelScope.launch {
-            database.withTransaction {
+            when (val outcome = database.withTransaction {
                 BucketSplitter(RoomBucketStore(database)).applySplit(source.id, source.amountPaise, lines, System.currentTimeMillis())
+            }) {
+                is SplitOutcome.Done -> _messages.send("${Money.formatPaise(source.amountPaise - outcome.leftoverPaise)} allocated, ${Money.formatPaise(outcome.leftoverPaise)} left unallocated")
+                SplitOutcome.AlreadySplit -> _messages.send("Already split")
+                SplitOutcome.NothingToWrite -> _messages.send("Nothing to split")
+                is SplitOutcome.Invalid -> _messages.send("Split is invalid")
             }
         }
     }
