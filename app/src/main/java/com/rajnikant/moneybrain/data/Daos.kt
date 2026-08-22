@@ -42,6 +42,7 @@ interface TransactionDao {
     @Update suspend fun update(item: RecurringEntity)
     @Query("SELECT * FROM recurring WHERE id = :id") suspend fun getById(id: Long): RecurringEntity?
     @Query("UPDATE recurring SET nextDue = :iso WHERE id = :id") suspend fun setNextDue(id: Long, iso: String): Int
+    @Query("DELETE FROM recurring WHERE id = :id") suspend fun deleteById(id: Long): Int
 }
 @Dao interface RecurringDismissedDao {
     @Query("SELECT * FROM recurring_dismissed") fun observeAll(): Flow<List<RecurringDismissedEntity>>

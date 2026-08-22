@@ -149,3 +149,6 @@ remaining = `BucketMath.remaining(allocated, spent, reserved)`. Show a
   The Recurring tab requests POST_NOTIFICATIONS once on first open and continues normally when
   denied. `./gradlew test` and debug build pass, and the APK was installed over the live app with
   `adb install -r`. No architect-owned files changed; Phase 4 implementation is complete.
+- Added a confirmed Delete action for recurring items of every status. It permanently removes the
+  item while preserving past activity actions, whose existing undo behavior correctly reports a
+  missing target. `./gradlew test` and debug build pass; the APK was installed over the live app.
