@@ -29,22 +29,30 @@ data class ParsedSms(
 
 object SmsParser {
 
-    /** Filled by the architect in stage B, built from masked real samples. */
-    val templates: List<SmsTemplate> = emptyList()
+    /** Built from Rajnikant's masked real samples — see BankTemplates. */
+    val templates: List<SmsTemplate> = BankTemplates.all
 
     /**
-     * Liberal on purpose: this gates which messages the capture pipeline LOOKS at
-     * (promos from the same banks included); the templates decide what actually parses.
-     * Sender ids look like "VM-BOBSMS", "AD-HDFCBK-S", "BOBTXN".
+     * Which bank a sender id belongs to ("VM-BOBSMS-S" -> BOB, "AD-HDFCBK-S" -> HDFC),
+     * or null for everything else. Liberal on purpose: this gates which messages the
+     * capture pipeline LOOKS at (promos from these banks included); the templates decide
+     * what actually parses.
      */
-    fun isBankSender(sender: String): Boolean {
+    fun senderBank(sender: String): String? {
         val s = sender.uppercase()
-        return s.contains("BOB") || s.contains("HDFC")
+        return when {
+            s.contains("HDFC") -> "HDFC"
+            s.contains("BOB") -> "BOB"
+            else -> null
+        }
     }
 
+    fun isBankSender(sender: String): Boolean = senderBank(sender) != null
+
     fun parse(sender: String, body: String, templateList: List<SmsTemplate> = templates): ParsedSms? {
-        if (!isBankSender(sender)) return null
+        val bank = senderBank(sender) ?: return null
         for (template in templateList) {
+            if (template.bank != bank) continue
             val match = template.regex.find(body) ?: continue
             val groups = match.groups as? MatchNamedGroupCollection ?: continue
             val amountPaise = groups.valueOf("amount")?.let(::inrToPaise) ?: continue
