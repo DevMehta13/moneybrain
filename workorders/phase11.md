@@ -1,6 +1,6 @@
 # Work order: Phase 11 — account balances + envelope buckets
 
-Status: OPEN
+Status: IN PROGRESS
 Phase reference: PLAN.md → Phase 11 (added 2026-08-23 by owner decision)
 
 ## What changed and why (read first)
@@ -181,4 +181,19 @@ them (UndoEngine reads both payload keys). Export schema v6.
 
 ## Result
 
-(Fill in after execution.)
+- Interim implementation pushed in `18ab3a3` and `b7789ca`.
+- Implemented the hand-written 5→6 migration: `bucket_entries` preserves legacy allocation IDs,
+  `balance_snapshots` and `split_dismissed` are created, and Room now targets schema v6.
+- Replaced the Room allocation store with the envelope-entry store, including atomic linked move
+  pairs and inverse deletion of both legs. Legacy SALARY_SPLIT undo and new AMOUNT_SPLIT undo
+  both delete `bucket_entries` by their preserved IDs; balance-snapshot undo is wired.
+- Reworked shared bucket status calculation to use `BucketLedger` all-time balances and added
+  the shared account/bucket money-map calculation. Overview consumes the new law and displays
+  total balance when at least one account is tracked.
+- Settings → Accounts now displays tracked/not-tracked balances and saves set/correct snapshots
+  together with undoable BALANCE_CORRECTED actions.
+- Build verification is currently blocked by local tooling: Gradle requires Java 17+ (Java 25 is
+  available and was used), but no Android SDK location/platform is installed or configured on
+  this machine. Consequently `./gradlew test` cannot run and Room cannot export schema v6 yet.
+- Remaining work: complete the split/editor, dismissal, bucket-history/manual-control UI, and
+  run the full test + migration verification once the Android SDK is available.
