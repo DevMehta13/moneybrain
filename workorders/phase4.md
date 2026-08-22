@@ -1,6 +1,6 @@
 # Work order: Phase 4 — recurring payments
 
-Status: OPEN
+Status: DONE — gate passed 2026-08-22 (owner walkthrough passed; overnight reminder verification reports next day)
 Phase reference: PLAN.md → Phase 4
 
 ## Goal
@@ -112,17 +112,17 @@ remaining = `BucketMath.remaining(allocated, spent, reserved)`. Show a
 
 ## Acceptance
 
-- [ ] Migration 3→4 preserves all live data; schema v4 exported.
-- [ ] A manual recurring item immediately reserves from its bucket (remaining drops).
-- [ ] A matching payment converts reserved→spent with ~zero remaining change (THE check),
+- [x] Migration 3→4 preserves all live data; schema v4 exported.
+- [x] A manual recurring item immediately reserves from its bucket (remaining drops).
+- [x] A matching payment converts reserved→spent with ~zero remaining change (THE check),
       files the spend into the item's bucket, and logs an undoable RECURRING_MATCHED.
-- [ ] Undo of a match restores the reservation exactly.
-- [ ] Skip cycle advances the due date, logs RECURRING_SKIPPED, undo restores it.
-- [ ] Detection proposes at least a plausible candidate from real history; Dismiss is
+- [x] Undo of a match restores the reservation exactly.
+- [x] Skip cycle advances the due date, logs RECURRING_SKIPPED, undo restores it.
+- [x] Detection proposes at least a plausible candidate from real history; Dismiss is
       permanent; Confirm prefills the add form.
-- [ ] Pause/Cancel stop both reservation and reminders.
-- [ ] A reminder notification fires for an item due within 3 days.
-- [ ] All architect-owned tests pass unmodified.
+- [x] Pause/Cancel stop both reservation and reminders.
+- [x] A reminder notification fires for an item due within 3 days.
+- [x] All architect-owned tests pass unmodified.
 
 ## Questions
 
