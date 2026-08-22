@@ -123,6 +123,37 @@ that the migrated schema lacks makes Room reject the database at open.
 - [ ] Month boundary correct: a transaction on the 1st counts in the new month.
 - [ ] All architect-owned tests pass unmodified.
 
+## Review findings — fix round 2 (architect, 2026-08-22) — Status: OPEN
+
+Category mapping and the transaction override are approved. The following must be fixed
+before the gate; items 1–3 are bugs, 4–7 are missing spec requirements.
+
+1. **Spent must be month-filtered.** `BucketsViewModel.status` sums OUT transactions from
+   all time against current-month allocations. Fix: include only transactions whose
+   `occurredAt`, converted via the device timezone to "YYYY-MM", equals the status month —
+   the same month semantics allocations use.
+2. **Surface split outcomes.** `splitSalary` must deliver its `SplitOutcome` to the UI
+   (Channel → snackbar, same pattern as ActivityViewModel.undoResults):
+   Done → "₹X allocated, ₹Y unallocated" from the result; AlreadySplit → explain;
+   EmptyPlan → point to the plan editor.
+3. **Salary candidates:** restrict to CURRENT-MONTH IN transactions, and check
+   already-split globally, not against one month's allocations — query the distinct
+   non-null `sourceTransactionId`s from bucket_allocations (all months) and exclude them.
+   Also: use `SalaryDetector.looksLikeSalary(...)` — delete the inline reimplementation;
+   detection logic lives in exactly one place.
+4. **Split preview on the salary card:** before the button, list each bucket's amount from
+   `BucketMath.split(salary, plan)` plus an "unallocated" line — the card must show what
+   Split now will do, and the numbers must come from the same function that will do it.
+5. **Plan editor completion:** per-entry remove (add a deleteById DAO query for
+   bucket_plan), up/down reorder (maintain proper sequential `sortOrder` values — replace
+   the `currentTimeMillis().toInt()` hack with max+1 on insert and swaps on reorder), and
+   the warning line when `BucketMath.totalPercentBp(plan) > 10_000`.
+6. **Blocked bucket delete must say why** (snackbar "This bucket has allocations"), not
+   silently do nothing.
+7. **Confirm negative remaining renders in the Material error color**; implement if missing.
+
+Then: `./gradlew test` green, reinstall on top, append a fix-round note to Result, push.
+
 ## Questions
 
 - ~~RESOLVED by architect (2026-08-22): the missing-month call in BucketsTest was the
