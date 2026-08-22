@@ -143,3 +143,9 @@ remaining = `BucketMath.remaining(allocated, spent, reserved)`. Show a
 - Remaining Phase 4 UI work: detected candidates with confirm/dismiss, edit/cancel confirmation,
   skip-cycle action, and first-open notification-permission request. These acceptance items are
   not yet complete, so Phase 4 remains open.
+- Completion pass: added the detected-candidate section over six months of normalised OUT history;
+  Confirm prefills the recurring form and Dismiss persists the merchant key. Added edit, cancel
+  confirmation, and Skip cycle with RECURRING_SKIPPED plus the old-next-due inverse payload.
+  The Recurring tab requests POST_NOTIFICATIONS once on first open and continues normally when
+  denied. `./gradlew test` and debug build pass, and the APK was installed over the live app with
+  `adb install -r`. No architect-owned files changed; Phase 4 implementation is complete.
