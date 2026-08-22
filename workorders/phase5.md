@@ -1,6 +1,6 @@
 # Work order: Phase 5 — people & trips
 
-Status: OPEN
+Status: COMPLETE
 Phase reference: PLAN.md → Phase 5
 
 ## Goal
@@ -144,3 +144,17 @@ ALTER TABLE transactions ADD COLUMN tripId INTEGER;  -- plain column, NO Room Fo
   prevents a second active trip. Tests and debug build pass; the APK was installed over live data.
 - Remaining: person detail lending/owing/settlement flows, editor split and trip pickers, and trip
   details/manual filing UI. Phase remains open.
+- Completed the remaining People flows: person detail now shows signed ledger history, records
+  lending as one OUT transaction plus LENT ledger row, records "they paid for me" as an I_OWE
+  ledger row, and settles balances using the exact SplitMath settlement amount in the same
+  database transaction as the settlement transaction.
+- Completed transaction-editor splits and trip assignment. People can be selected for exact-paise
+  equal or validated custom splits; SPLIT rows are saved atomically with the transaction and can
+  be removed individually. New manual OUT entries default to the active trip; any entry can
+  change or clear its trip. Existing custom split values remain custom when reopened.
+- Completed Trips: list entries open a detail with total, category and day breakdowns, transaction
+  list, and trip-only amount owed to you. The screen supports active start/stop and dated trips;
+  it continues to prevent a second active trip.
+- Architect-owned SplitMath and capture/action files were not modified. `./gradlew test` and the
+  debug build pass, and the debug APK was installed over the existing app successfully. Phase 5
+  is ready for architect review and owner smoke checks.

@@ -14,10 +14,13 @@ import com.rajnikant.moneybrain.data.CategoryEntity
 import com.rajnikant.moneybrain.data.TransactionDao
 import com.rajnikant.moneybrain.data.TransactionEntity
 import com.rajnikant.moneybrain.data.MoneyBrainDatabase
+import com.rajnikant.moneybrain.data.PersonLedgerEntity
 import com.rajnikant.moneybrain.data.RoomRuleStore
 import com.rajnikant.moneybrain.capture.RuleLearner
 import com.rajnikant.moneybrain.capture.RuleStore
 import com.rajnikant.moneybrain.money.Money
+import com.rajnikant.moneybrain.people.LedgerKinds
+import com.rajnikant.moneybrain.people.SplitMath
 import com.rajnikant.moneybrain.recurring.applyRecurringMatch
 import java.time.Instant
 import java.time.LocalDate
@@ -85,6 +88,7 @@ data class TransactionEditorState(
     val accountId: Long? = null,
     val categoryId: Long? = null,
     val bucketId: Long? = null,
+    val tripId: Long? = null,
     val merchant: String = "",
     val notes: String = "",
     val dateTime: String = formatDateTime(System.currentTimeMillis()),
@@ -114,10 +118,20 @@ class TransactionEditorViewModel(
     val accounts = accountDao.observeAll()
     val categories = categoryDao.observeAll()
     val buckets = database.bucketDao().observeAll()
+    val people = database.personDao().observeAll()
+    val trips = database.tripDao().observeAll()
     var state by mutableStateOf(TransactionEditorState())
         private set
 
     private var existingTransaction: TransactionEntity? = null
+    var splitMode by mutableStateOf("EQUAL")
+        private set
+    var splitPeople by mutableStateOf<Set<Long>>(emptySet())
+        private set
+    var customShares by mutableStateOf<Map<Long, String>>(emptyMap())
+        private set
+    var existingSplits by mutableStateOf<List<PersonLedgerEntity>>(emptyList())
+        private set
     private val _finished = Channel<Unit>(Channel.CONFLATED)
     val finished = _finished.receiveAsFlow()
 
@@ -132,15 +146,25 @@ class TransactionEditorViewModel(
                         accountId = transaction.accountId,
                         categoryId = transaction.categoryId,
                         bucketId = transaction.bucketId,
+                        tripId = transaction.tripId,
                         merchant = transaction.merchant.orEmpty(),
                         notes = transaction.notes.orEmpty(),
                         dateTime = formatDateTime(transaction.occurredAt),
                     )
+                    database.personLedgerDao().observeSplitsForTransaction(transactionId).first().also { splits ->
+                        existingSplits = splits
+                        splitPeople = splits.map { it.personId }.toSet()
+                        customShares = splits.associate { it.personId to Money.formatPaise(it.amountPaise).removePrefix("₹") }
+                        splitMode = if (splits.map { it.amountPaise } == SplitMath.equalShares(transaction.amountPaise, splits.size + 1).drop(1)) "EQUAL" else "CUSTOM"
+                    }
                 }
             }
         } else {
             viewModelScope.launch {
-                state = state.copy(accountId = accountDao.observeAllFirstCashId())
+                state = state.copy(
+                    accountId = accountDao.observeAllFirstCashId(),
+                    tripId = database.tripDao().activeAt(System.currentTimeMillis())?.id,
+                )
             }
         }
     }
@@ -152,6 +176,24 @@ class TransactionEditorViewModel(
     fun validAmount(): Long? = Money.parseToPaise(state.amount)?.takeIf { it > 0 }
 
     fun validDateTime(): Long? = parseDateTime(state.dateTime)
+
+    fun chooseSplitMode(mode: String) { splitMode = mode }
+    fun togglePerson(personId: Long) {
+        splitPeople = if (personId in splitPeople) splitPeople - personId else splitPeople + personId
+    }
+    fun setCustomShare(personId: Long, value: String) { customShares = customShares + (personId to value) }
+    fun validSplits(): Boolean {
+        if (splitPeople.isEmpty()) return true
+        val amount = validAmount() ?: return false
+        return if (splitMode == "EQUAL") true else SplitMath.validCustomShares(amount, splitPeople.map { Money.parseToPaise(customShares[it].orEmpty()) ?: 0 })
+    }
+    fun removeSplit(row: PersonLedgerEntity) {
+        viewModelScope.launch {
+            database.personLedgerDao().deleteById(row.id)
+            existingSplits = existingSplits.filterNot { it.id == row.id }
+            splitPeople = splitPeople - row.personId
+        }
+    }
 
     fun save(categoryId: Long? = state.categoryId) {
         val amountPaise = validAmount() ?: return
@@ -173,11 +215,13 @@ class TransactionEditorViewModel(
                 referenceNo = previous?.referenceNo,
                 createdAt = previous?.createdAt ?: System.currentTimeMillis(),
                 bucketId = state.bucketId,
+                tripId = if (state.direction == "OUT") state.tripId else null,
             )
             database.withTransaction {
-                if (previous == null) {
+                val savedId = if (previous == null) {
                     val id = transactionDao.insert(transaction)
                     if (transaction.direction == "OUT") transactionDao.getById(id)?.let { applyRecurringMatch(database, it) }
+                    id
                 } else {
                     transactionDao.update(transaction)
                     if (previous.categoryId != categoryId && transaction.merchant != null && categoryId != null) {
@@ -190,6 +234,14 @@ class TransactionEditorViewModel(
                             )
                         }
                     }
+                    transaction.id
+                }
+                database.personLedgerDao().deleteSplitsForTransaction(savedId)
+                val shares = if (splitPeople.isEmpty()) emptyList() else if (splitMode == "EQUAL") {
+                    SplitMath.equalShares(amountPaise, splitPeople.size + 1).drop(1)
+                } else splitPeople.map { Money.parseToPaise(customShares[it].orEmpty()) ?: 0 }
+                splitPeople.toList().zip(shares).forEach { (personId, share) ->
+                    database.personLedgerDao().insert(PersonLedgerEntity(personId = personId, amountPaise = share, kind = LedgerKinds.SPLIT, transactionId = savedId, note = null, createdAt = System.currentTimeMillis()))
                 }
             }
             _finished.send(Unit)

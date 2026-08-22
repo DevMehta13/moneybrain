@@ -70,7 +70,11 @@ import com.rajnikant.moneybrain.capture.ActionKinds
 import com.rajnikant.moneybrain.capture.UndoResult
 import com.rajnikant.moneybrain.data.AccountEntity
 import com.rajnikant.moneybrain.data.CategoryEntity
+import com.rajnikant.moneybrain.data.PersonLedgerEntity
+import com.rajnikant.moneybrain.data.TransactionEntity
 import com.rajnikant.moneybrain.money.Money
+import com.rajnikant.moneybrain.people.LedgerKinds
+import com.rajnikant.moneybrain.people.SplitMath
 import com.rajnikant.moneybrain.viewmodel.AccountsViewModel
 import com.rajnikant.moneybrain.viewmodel.ActivityViewModel
 import com.rajnikant.moneybrain.viewmodel.BucketsViewModel
@@ -113,6 +117,8 @@ private const val captureRoute = "capture"
 private const val categoryBucketsRoute = "categoryBuckets"
 private const val peopleRoute = "people"
 private const val tripsRoute = "trips"
+private const val personDetailRoute = "person/{personId}"
+private const val tripDetailRoute = "trip/{tripId}"
 private const val addRoute = "add"
 private const val editRoute = "edit/{transactionId}"
 
@@ -165,8 +171,10 @@ fun MoneyBrainScreen() {
                 )
             }
             composable(categoryBucketsRoute) { CategoryBucketsScreen(database, onBack = { navController.popBackStack() }) }
-            composable(peopleRoute) { PeopleScreen(database, onBack = { navController.popBackStack() }) }
-            composable(tripsRoute) { TripsScreen(database, onBack = { navController.popBackStack() }) }
+            composable(peopleRoute) { PeopleScreen(database, onBack = { navController.popBackStack() }, onPerson = { navController.navigate("person/$it") }) }
+            composable(personDetailRoute) { entry -> PersonDetailScreen(database, entry.arguments?.getString("personId")?.toLongOrNull() ?: return@composable, onBack = { navController.popBackStack() }) }
+            composable(tripsRoute) { TripsScreen(database, onBack = { navController.popBackStack() }, onTrip = { navController.navigate("trip/$it") }) }
+            composable(tripDetailRoute) { entry -> TripDetailScreen(database, entry.arguments?.getString("tripId")?.toLongOrNull() ?: return@composable, onBack = { navController.popBackStack() }) }
             composable(activityRoute) {
                 val viewModel: ActivityViewModel = viewModel(factory = factory)
                 ActivityScreen(viewModel, onAddManually = { navController.navigate(addRoute) })
@@ -540,6 +548,8 @@ private fun TransactionEditorScreen(
     val accounts by viewModel.accounts.collectAsState(initial = emptyList())
     val categories by viewModel.categories.collectAsState(initial = emptyList())
     val buckets by viewModel.buckets.collectAsState(initial = emptyList())
+    val people by viewModel.people.collectAsState(initial = emptyList())
+    val trips by viewModel.trips.collectAsState(initial = emptyList())
     val state = viewModel.state
     val focusRequester = remember { FocusRequester() }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -596,6 +606,26 @@ private fun TransactionEditorScreen(
             }
         }
         item { BucketPicker(buckets, state.bucketId) { id -> viewModel.update { copy(bucketId = id) } } }
+        if (state.direction == "OUT") item { TripPicker(trips, state.tripId) { id -> viewModel.update { copy(tripId = id) } } }
+        item {
+            Text("Split with people", fontWeight = FontWeight.Medium)
+            Text("Your share stays in this transaction; the other shares are owed to you.", style = MaterialTheme.typography.bodySmall)
+        }
+        item {
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                people.forEach { person -> FilterChip(selected = person.id in viewModel.splitPeople, onClick = { viewModel.togglePerson(person.id) }, label = { Text(person.name) }) }
+            }
+        }
+        if (viewModel.splitPeople.isNotEmpty()) {
+            item { SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) { listOf("EQUAL", "CUSTOM").forEachIndexed { i, mode -> SegmentedButton(selected = viewModel.splitMode == mode, onClick = { viewModel.chooseSplitMode(mode) }, shape = SegmentedButtonDefaults.itemShape(i, 2)) { Text(mode.lowercase().replaceFirstChar { it.uppercase() }) } } } }
+            if (viewModel.splitMode == "EQUAL") item { val amount = viewModel.validAmount(); if (amount != null) Text("${Money.formatPaise(amount)} split across you + ${viewModel.splitPeople.size}: ${SplitMath.equalShares(amount, viewModel.splitPeople.size + 1).joinToString(" / ") { Money.formatPaise(it) }}", style = MaterialTheme.typography.bodySmall) }
+            if (viewModel.splitMode == "CUSTOM") {
+                viewModel.splitPeople.forEach { id -> item(key = "share-$id") { val person = people.firstOrNull { it.id == id }; OutlinedTextField(value = viewModel.customShares[id].orEmpty(), onValueChange = { viewModel.setCustomShare(id, it) }, label = { Text("${person?.name ?: "Person"}'s share") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth()) } }
+                if (!viewModel.validSplits()) item { Text("Enter positive shares that do not exceed the total.", color = MaterialTheme.colorScheme.error) }
+            }
+        }
+        if (viewModel.existingSplits.isNotEmpty()) item { Text("Saved split rows", fontWeight = FontWeight.Medium) }
+        viewModel.existingSplits.forEach { row -> item(key = "existing-split-${row.id}") { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("${people.firstOrNull { it.id == row.personId }?.name ?: "Person"} · ${Money.formatPaise(row.amountPaise)}"); TextButton(onClick = { viewModel.removeSplit(row) }) { Text("Remove") } } } }
         item {
             OutlinedTextField(
                 value = state.merchant,
@@ -633,14 +663,14 @@ private fun TransactionEditorScreen(
                     if (isEdit) viewModel.update { copy(categoryId = categoryId) }
                     else viewModel.save(categoryId)
                 },
-                enabled = viewModel.validAmount() != null && state.accountId != null && viewModel.validDateTime() != null,
+                enabled = viewModel.validAmount() != null && state.accountId != null && viewModel.validDateTime() != null && viewModel.validSplits(),
             )
         }
         if (isEdit) {
             item {
                 Button(
                     onClick = viewModel::save,
-                    enabled = viewModel.validAmount() != null && state.accountId != null && viewModel.validDateTime() != null,
+                    enabled = viewModel.validAmount() != null && state.accountId != null && viewModel.validDateTime() != null && viewModel.validSplits(),
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Save") }
             }
@@ -664,6 +694,11 @@ private fun BucketPicker(buckets: List<com.rajnikant.moneybrain.data.BucketEntit
             buckets.forEach { bucket -> androidx.compose.material3.DropdownMenuItem(text = { Text(bucket.name) }, onClick = { onSelect(bucket.id); expanded = false }) }
         }
     }
+}
+
+@Composable private fun TripPicker(trips: List<com.rajnikant.moneybrain.data.TripEntity>, selectedId: Long?, onSelect: (Long?) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }; val selected = trips.firstOrNull { it.id == selectedId }
+    Column { Text("Trip", style = MaterialTheme.typography.labelLarge); Button(onClick = { expanded = true }) { Text(selected?.name ?: "No trip") }; androidx.compose.material3.DropdownMenu(expanded, { expanded = false }) { androidx.compose.material3.DropdownMenuItem(text = { Text("No trip") }, onClick = { onSelect(null); expanded = false }); trips.forEach { trip -> androidx.compose.material3.DropdownMenuItem(text = { Text(trip.name) }, onClick = { onSelect(trip.id); expanded = false }) } } }
 }
 
 @Composable
@@ -746,15 +781,31 @@ private fun SettingsScreen(onAccounts: () -> Unit, onCapture: () -> Unit, onCate
     }
 }
 
-@Composable private fun PeopleScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBack: () -> Unit) {
+@Composable private fun PeopleScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBack: () -> Unit, onPerson: (Long) -> Unit) {
     val people by database.personDao().observeAll().collectAsState(initial = emptyList()); val balances by database.personLedgerDao().observeBalances().collectAsState(initial = emptyList()); val scope = rememberCoroutineScope(); var name by remember { mutableStateOf("") }; val map = balances.associate { it.personId to it.balance }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { item { TextButton(onClick = onBack) { Text("Back") }; Text("People", style = MaterialTheme.typography.headlineSmall); Text("Owed to you ${Money.formatPaise(map.values.filter { it > 0 }.sum())} · You owe ${Money.formatPaise(-map.values.filter { it < 0 }.sum())}") }; item { Row { OutlinedTextField(name, { name = it }, label = { Text("New person") }, modifier = Modifier.weight(1f)); Button(onClick = { if (name.isNotBlank()) scope.launch { database.personDao().insert(com.rajnikant.moneybrain.data.PersonEntity(name = name.trim(), createdAt = System.currentTimeMillis())); name = "" } }) { Text("Add") } } }; items(people, key = { it.id }) { person -> val balance = map[person.id] ?: 0; Card { Column(Modifier.padding(12.dp)) { Text(person.name); Text(if (balance > 0) "owes you ${Money.formatPaise(balance)}" else if (balance < 0) "you owe ${Money.formatPaise(-balance)}" else "settled") } } } }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { item { TextButton(onClick = onBack) { Text("Back") }; Text("People", style = MaterialTheme.typography.headlineSmall); Text("Owed to you ${Money.formatPaise(map.values.filter { it > 0 }.sum())} · You owe ${Money.formatPaise(-map.values.filter { it < 0 }.sum())}") }; item { Row { OutlinedTextField(name, { name = it }, label = { Text("New person") }, modifier = Modifier.weight(1f)); Button(onClick = { if (name.isNotBlank()) scope.launch { database.personDao().insert(com.rajnikant.moneybrain.data.PersonEntity(name = name.trim(), createdAt = System.currentTimeMillis())); name = "" } }) { Text("Add") } } }; items(people, key = { it.id }) { person -> val balance = map[person.id] ?: 0; Card(Modifier.fillMaxWidth().clickable { onPerson(person.id) }) { Column(Modifier.padding(12.dp)) { Text(person.name); Text(if (balance > 0) "owes you ${Money.formatPaise(balance)}" else if (balance < 0) "you owe ${Money.formatPaise(-balance)}" else "settled") } } } }
 }
 
-@Composable private fun TripsScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBack: () -> Unit) {
-    val trips by database.tripDao().observeAll().collectAsState(initial = emptyList()); val scope = rememberCoroutineScope(); var name by remember { mutableStateOf("") }; val active = trips.firstOrNull { it.endedAt == null }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { item { TextButton(onClick = onBack) { Text("Back") }; Text("Trips", style = MaterialTheme.typography.headlineSmall) }; if (active != null) item { Card { Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("Active: ${active.name}"); Button(onClick = { scope.launch { database.tripDao().stop(active.id, System.currentTimeMillis()) } }) { Text("Stop trip") } } } }; item { Row { OutlinedTextField(name, { name = it }, label = { Text("Trip name") }, modifier = Modifier.weight(1f)); Button(onClick = { if (name.isNotBlank() && active == null) scope.launch { val now = System.currentTimeMillis(); database.tripDao().insert(com.rajnikant.moneybrain.data.TripEntity(name = name.trim(), startedAt = now, endedAt = null, createdAt = now)); name = "" } }, enabled = name.isNotBlank() && active == null) { Text("Start now") } } }; items(trips, key = { it.id }) { trip -> Text("${trip.name} · ${if (trip.endedAt == null) "Active" else "Ended"}") } }
+@Composable private fun PersonDetailScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, personId: Long, onBack: () -> Unit) {
+    val people by database.personDao().observeAll().collectAsState(initial = emptyList()); val accounts by database.accountDao().observeAll().collectAsState(initial = emptyList()); val rows by database.personLedgerDao().observeForPerson(personId).collectAsState(initial = emptyList()); val scope = rememberCoroutineScope(); val person = people.firstOrNull { it.id == personId } ?: return; val balance = SplitMath.balance(rows.map { it.amountPaise }); var lent by remember { mutableStateOf("") }; var owed by remember { mutableStateOf("") }; var note by remember { mutableStateOf("") }; var accountId by remember { mutableStateOf<Long?>(null) }; var settleConfirm by remember { mutableStateOf(false) }
+    LaunchedEffect(accounts) { if (accountId == null) accountId = accounts.firstOrNull { it.type == "CASH" }?.id ?: accounts.firstOrNull()?.id }
+    fun recordLent() { val amount = Money.parseToPaise(lent)?.takeIf { it > 0 } ?: return; val account = accountId ?: return; scope.launch { database.withTransaction { val now = System.currentTimeMillis(); val tx = database.transactionDao().insert(TransactionEntity(amountPaise = amount, direction = "OUT", accountId = account, categoryId = null, merchant = person.name, occurredAt = now, notes = "Lent to ${person.name}", source = "MANUAL", createdAt = now)); database.personLedgerDao().insert(PersonLedgerEntity(personId = personId, amountPaise = amount, kind = LedgerKinds.LENT, transactionId = tx, note = null, createdAt = now)) }; lent = "" } }
+    fun recordOwed() { val amount = Money.parseToPaise(owed)?.takeIf { it > 0 } ?: return; scope.launch { database.personLedgerDao().insert(PersonLedgerEntity(personId = personId, amountPaise = -amount, kind = LedgerKinds.I_OWE, transactionId = null, note = note.trim().ifBlank { null }, createdAt = System.currentTimeMillis())); owed = ""; note = "" } }
+    if (settleConfirm) AlertDialog(onDismissRequest = { settleConfirm = false }, title = { Text("Settle up?") }, text = { Text(if (balance > 0) "${person.name} pays you ${Money.formatPaise(balance)}" else "You pay ${person.name} ${Money.formatPaise(-balance)}") }, confirmButton = { TextButton(onClick = { val account = accountId ?: return@TextButton; scope.launch { database.withTransaction { val now = System.currentTimeMillis(); val amount = kotlin.math.abs(balance); val tx = database.transactionDao().insert(TransactionEntity(amountPaise = amount, direction = if (balance > 0) "IN" else "OUT", accountId = account, categoryId = null, merchant = person.name, occurredAt = now, notes = "Settlement with ${person.name}", source = "MANUAL", createdAt = now)); database.personLedgerDao().insert(PersonLedgerEntity(personId = personId, amountPaise = SplitMath.settlementAmount(balance), kind = LedgerKinds.SETTLEMENT, transactionId = tx, note = null, createdAt = now)) }; settleConfirm = false } }) { Text("Confirm") } }, dismissButton = { TextButton(onClick = { settleConfirm = false }) { Text("Cancel") } })
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { item { TextButton(onClick = onBack) { Text("Back") }; Text(person.name, style = MaterialTheme.typography.headlineSmall); Text(if (balance > 0) "owes you ${Money.formatPaise(balance)}" else if (balance < 0) "you owe ${Money.formatPaise(-balance)}" else "settled") }; item { AccountPicker(accounts, accountId) { accountId = it } }; item { OutlinedTextField(lent, { lent = it }, label = { Text("I lent them") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth()); Button(onClick = ::recordLent, enabled = Money.parseToPaise(lent)?.let { it > 0 } == true && accountId != null) { Text("Record loan") } }; item { OutlinedTextField(owed, { owed = it }, label = { Text("They paid for me") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth()); OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") }, modifier = Modifier.fillMaxWidth()); Button(onClick = ::recordOwed, enabled = Money.parseToPaise(owed)?.let { it > 0 } == true) { Text("Record") } }; if (balance != 0L) item { Button(onClick = { settleConfirm = true }, modifier = Modifier.fillMaxWidth()) { Text("Settle up") } }; item { Text("History", fontWeight = FontWeight.Medium) }; items(rows, key = { it.id }) { row -> Card { Column(Modifier.padding(12.dp)) { Text("${row.kind.lowercase().replaceFirstChar { it.uppercase() }} · ${Money.formatPaise(kotlin.math.abs(row.amountPaise))}"); Text(row.note ?: row.transactionId?.let { "Linked transaction" } ?: "No account transaction", style = MaterialTheme.typography.bodySmall); Text(Instant.ofEpochMilli(row.createdAt).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("d MMM yyyy")), style = MaterialTheme.typography.bodySmall) } } } }
 }
+
+@Composable private fun TripsScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBack: () -> Unit, onTrip: (Long) -> Unit) {
+    val trips by database.tripDao().observeAll().collectAsState(initial = emptyList()); val scope = rememberCoroutineScope(); val snackbar = remember { SnackbarHostState() }; var name by remember { mutableStateOf("") }; var start by remember { mutableStateOf("") }; var end by remember { mutableStateOf("") }; val active = trips.firstOrNull { it.endedAt == null }
+    Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { item { TextButton(onClick = onBack) { Text("Back") }; Text("Trips", style = MaterialTheme.typography.headlineSmall) }; if (active != null) item { Card { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("Active: ${active.name}"); Button(onClick = { scope.launch { database.tripDao().stop(active.id, System.currentTimeMillis()) } }) { Text("Stop trip") } } } }; item { OutlinedTextField(name, { name = it }, label = { Text("Trip name") }, modifier = Modifier.fillMaxWidth()); Button(onClick = { if (active != null) scope.launch { snackbar.showSnackbar("Stop ${active.name} before starting another trip") } else if (name.isNotBlank()) scope.launch { val now = System.currentTimeMillis(); database.tripDao().insert(com.rajnikant.moneybrain.data.TripEntity(name = name.trim(), startedAt = now, endedAt = null, createdAt = now)); name = "" } }, enabled = name.isNotBlank()) { Text("Start now") } }; item { Text("Or create a dated trip", fontWeight = FontWeight.Medium); OutlinedTextField(start, { start = it }, label = { Text("Start (YYYY-MM-DD HH:MM)") }, modifier = Modifier.fillMaxWidth()); OutlinedTextField(end, { end = it }, label = { Text("End (YYYY-MM-DD HH:MM)") }, modifier = Modifier.fillMaxWidth()); Button(onClick = { val s = parseTripDate(start); val e = parseTripDate(end); if (name.isNotBlank() && s != null && e != null && e >= s) scope.launch { database.tripDao().insert(com.rajnikant.moneybrain.data.TripEntity(name = name.trim(), startedAt = s, endedAt = e, createdAt = System.currentTimeMillis())); name = ""; start = ""; end = "" } }, enabled = name.isNotBlank() && parseTripDate(start) != null && parseTripDate(end) != null) { Text("Create dated trip") } }; items(trips, key = { it.id }) { trip -> Card(Modifier.fillMaxWidth().clickable { onTrip(trip.id) }) { Text("${trip.name} · ${if (trip.endedAt == null) "Active" else "Ended"}", Modifier.padding(12.dp)) } } } }
+}
+
+@Composable private fun TripDetailScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, tripId: Long, onBack: () -> Unit) {
+    val trips by database.tripDao().observeAll().collectAsState(initial = emptyList()); val transactions by database.transactionDao().observeAll().collectAsState(initial = emptyList()); val categories by database.categoryDao().observeAll().collectAsState(initial = emptyList()); val ledger by database.personLedgerDao().observeAll().collectAsState(initial = emptyList()); val trip = trips.firstOrNull { it.id == tripId } ?: return; val spend = transactions.filter { it.tripId == tripId && it.direction == "OUT" }; val transactionIds = spend.map { it.id }.toSet(); val total = spend.sumOf { it.amountPaise }; val owed = ledger.filter { it.kind == LedgerKinds.SPLIT && it.transactionId in transactionIds }.sumOf { it.amountPaise }; val names = categories.associate { it.id to it.name }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { item { TextButton(onClick = onBack) { Text("Back") }; Text(trip.name, style = MaterialTheme.typography.headlineSmall); Text("Total ${Money.formatPaise(total)}"); Text("Owed to you within this trip ${Money.formatPaise(owed)}") }; item { Text("By category", fontWeight = FontWeight.Medium) }; items(spend.groupBy { names[it.categoryId] ?: "Uncategorised" }.toList(), key = { it.first }) { (category, rows) -> Text("$category · ${Money.formatPaise(rows.sumOf { it.amountPaise })}") }; item { Text("By day", fontWeight = FontWeight.Medium) }; items(spend.groupBy { Instant.ofEpochMilli(it.occurredAt).atZone(ZoneId.systemDefault()).toLocalDate().toString() }.toList(), key = { it.first }) { (day, rows) -> Text("$day · ${Money.formatPaise(rows.sumOf { it.amountPaise })}") }; item { Text("Transactions", fontWeight = FontWeight.Medium) }; items(spend, key = { it.id }) { tx -> Card { Column(Modifier.padding(12.dp)) { Text(tx.merchant ?: "Expense"); Text(Money.formatPaise(tx.amountPaise)); Text(Instant.ofEpochMilli(tx.occurredAt).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("d MMM yyyy")), style = MaterialTheme.typography.bodySmall) } } } }
+}
+
+private fun parseTripDate(text: String): Long? = runCatching { java.time.LocalDateTime.parse(text.trim(), DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull()
 
 @Composable
 private fun CategoryBucketsScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBack: () -> Unit) {
