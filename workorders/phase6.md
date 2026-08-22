@@ -1,6 +1,6 @@
 # Work order: Phase 6 — the Overview screen
 
-Status: OPEN
+Status: COMPLETE
 Phase reference: PLAN.md → Phase 6
 
 ## Goal
@@ -101,3 +101,14 @@ and Overview consume. Duplicated queries that could drift are a review-fail.
   and the uncategorised deep-link still need their final UI wiring. Settings also still needs its
   Activity card. Phase remains OPEN.
 - `./gradlew test` and the debug build pass; the APK was installed over the existing app.
+- Completed the remaining UI wiring: ended trips now show a Delete action with confirmation; it
+  clears every matching transaction tripId and deletes the trip in one database transaction.
+  The Overview uncategorised attention segment opens Timeline with its filter pre-applied, and
+  Settings now links to Activity.
+- Fixed a launch crash introduced by the first navigation-icon attempt. Some platform menu
+  drawables are XML types Compose cannot load through painterResource; the replacement uses safe
+  in-app visual symbols and adds no dependency. Cold launching after the final install produced
+  no AndroidRuntime/Compose exception.
+- Final verification: `./gradlew test`, debug build, install-over-existing-data, and a cold
+  device launch all passed. No schema, dependency, or architect-owned changes were made. Phase 6
+  is ready for architect review and owner smoke checks.
