@@ -62,9 +62,11 @@ Completed the laptop-side skeleton and build pipeline:
   also completed `./gradlew assembleDebug` successfully.
 - Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (11,566,149 bytes).
 
-Phone installation and restart acceptance checks are blocked because no Android device is
-connected: `adb devices -l` returned no devices. Device model and Android version are
-therefore not yet available, and the v2 update could not be confirmed on a phone.
+Phone installation and restart acceptance checks are currently blocked on USB-debugging
+authorisation. macOS detects a connected Google Pixel 9, but `adb devices -l` still shows
+no authorised device, including after restarting the adb service. The phone must be
+unlocked, USB debugging enabled, and the “Allow USB debugging?” RSA prompt accepted before
+the v2 update can be installed and confirmed. Android version is not available until then.
 
 Rajnikant’s next steps (plain USB route):
 
