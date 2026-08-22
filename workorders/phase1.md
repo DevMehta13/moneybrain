@@ -1,6 +1,6 @@
 # Work order: Phase 1 — database, manual entry, timeline
 
-Status: OPEN
+Status: DONE — gate passed 2026-08-22 (fix round 1 verified; architect review + owner manual checks)
 Phase reference: PLAN.md → Phase 1
 
 ## Goal
@@ -91,18 +91,18 @@ no `toDouble()` on money anywhere — treat any such line as a bug.
 
 ## Acceptance (from PLAN.md Phase 1 gate)
 
-- [ ] Adding a cash expense = two taps + typing the amount.
-- [ ] New entry appears at the top of the timeline instantly.
-- [ ] Data survives force-close AND phone restart.
-- [ ] Edit and delete both work and persist.
-- [ ] Amounts display correctly everywhere via Money.kt (₹0.05, ₹1,000, ₹1,23,456.78 cases).
-- [ ] `./gradlew test` passes with architect-owned tests unmodified.
+- [x] Adding a cash expense = two taps + typing the amount.
+- [x] New entry appears at the top of the timeline instantly.
+- [x] Data survives force-close AND phone restart.
+- [x] Edit and delete both work and persist.
+- [x] Amounts display correctly everywhere via Money.kt (₹0.05, ₹1,000, ₹1,23,456.78 cases).
+- [x] `./gradlew test` passes with architect-owned tests unmodified.
 
 ## Questions
 
 (Write questions here and push if blocked. Do not guess.)
 
-## Review findings — fix round 1 (architect) — Status: OPEN
+## Review findings — fix round 1 (architect) — Status: RESOLVED (verified in re-review)
 
 Overall: strong first pass; data layer and money discipline are exactly to spec. Two fixes
 required before the gate:
