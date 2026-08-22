@@ -157,3 +157,12 @@ captured and manual entries are distinguishable.
   completed and the app launched without a Room/migration error. The SMS receiver is
   registered and the Activity tab rendered successfully. A live test SMS was not sent during
   this install check.
+- Follow-up receiver-registration verification: pulled the architect's `exported=true` /
+  `BROADCAST_SMS` manifest fix, rebuilt, and installed over the existing phone app without
+  uninstalling. Both READ_SMS and RECEIVE_SMS are granted. After clearing logcat, a new
+  payment/SMS was triggered while `adb logcat | grep -i moneybrain` was watched. The receiver
+  itself intentionally writes no Money Brain capture logs (and no SMS content is logged), so
+  logcat did not provide a per-event receiver trace. The Timeline currently shows an `auto`
+  marker, confirming an SMS-sourced transaction is present on-device. The earlier payment
+  occurred before this registration fix was installed, so it could not have been captured by
+  the previously non-exported receiver.
