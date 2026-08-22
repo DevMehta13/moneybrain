@@ -76,3 +76,6 @@ BoB/HDFC parsing templates. No live capture yet, no database writes, nothing aut
   the capture list showed masked bodies only and Copy masked samples completed successfully.
 - Verified the architect-owned `SmsParser.kt`, `SmsMask.kt`, `Fingerprint.kt`, and
   `CaptureTest.kt` have no local changes.
+- Verification after the architect's bank-template update: `./gradlew test` passed,
+  including the unmodified `BankTemplatesTest.kt`; the debug APK built successfully,
+  installed over the existing phone app, and launched.
