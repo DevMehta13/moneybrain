@@ -1,6 +1,6 @@
 # Work order: Phase 11 — account balances + envelope buckets
 
-Status: IN PROGRESS
+Status: FIX ROUND 1 — see "Fix round 1" section below (review of abaf4d7)
 Phase reference: PLAN.md → Phase 11 (added 2026-08-23 by owner decision)
 
 ## What changed and why (read first)
@@ -174,6 +174,52 @@ them (UndoEngine reads both payload keys). Export schema v6.
       (verified by hand); "—" when any account is untracked.
 - [ ] Overview total balance equals the Buckets tab total (same shared function).
 - [ ] All architect-owned tests pass unmodified.
+
+## Fix round 1 (architect review of abaf4d7, 2026-08-23)
+
+Overall: faithful implementation — migration exact, shared law everywhere, writes transactional,
+architect tests untouched. Six items, two of them must-fix:
+
+### F1 (MUST) — Flow read inside a Room transaction can hang Save
+
+`AccountsScreen` save flow runs `database.transactionDao().observeAll().first()` INSIDE
+`withTransaction`. Flow collection is not guaranteed to join the enclosing Room transaction;
+on the single-connection path it can block against the transaction the coroutine itself
+holds — Save hangs forever with the database locked. Suspend DAO calls are the guaranteed
+mechanism. Fix: add `@Query("SELECT * FROM transactions") suspend fun getAll(): List<TransactionEntity>`
+to `TransactionDao` and use it there. Then exercise the flow live once on the device:
+set a balance, correct it, undo the correction from Activity.
+
+### F2 (MUST) — Transaction editor split validates against a different amount than it applies
+
+`SplitEditorDialog` in the editor receives `viewModel.validAmount()` — the CURRENT (possibly
+edited, unsaved) editor amount — while `applyBucketSplit` validates against the STORED
+`existingTransaction.amountPaise`. Edit the amount field before tapping "Split into buckets…"
+and the two disagree: `applySplit` returns `Invalid`, and `applyBucketSplit` ignores the
+outcome — a silent no-op the owner reads as success. Fix both halves:
+- the dialog must use the STORED transaction amount (expose it from the ViewModel), and
+- non-`Done` outcomes must surface a message (mirror `BucketsViewModel.applySplit`'s messaging).
+
+### F3 (minor) — Bucket history rows are missing note and date
+
+Spec (task 4.4): signed COLOURED amount, kind label, note, date. Currently only amount + kind.
+Add the note (when present) and the createdAt date, and colour the amount (+ normal, − error).
+
+### F4 (minor) — Two specified warnings not implemented
+
+- Take out: warn when the take-out would push the bucket negative (allow it, but say so).
+- "Split an amount": warn when the amount exceeds the known unallocated (allow; skip the
+  warning when unallocated is unknown).
+
+### F5 (minor) — The money map's "Set your balances" leads nowhere
+
+"Set your balances" / per-account "Set balance" are plain text. Give BucketsScreen a
+navigation callback to Settings → Accounts and make those rows tap through to it.
+
+### F6 (polish) — Blank split line reports the wrong error
+
+An unparseable/blank line becomes the `-1` sentinel and reads "Amounts cannot be negative".
+Treat unparseable text as its own state with the existing "Enter valid amounts" message.
 
 ## Questions
 
