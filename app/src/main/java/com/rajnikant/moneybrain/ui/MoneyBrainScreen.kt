@@ -290,6 +290,7 @@ private fun OverviewScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDat
 
 @Composable
 private fun BucketsScreen(viewModel: BucketsViewModel) {
+    LaunchedEffect(Unit) { viewModel.refreshMonth() }
     val statuses by viewModel.status.collectAsState(initial = emptyList())
     val plans by viewModel.plans.collectAsState(initial = emptyList())
     val salaries by viewModel.salaryCandidates.collectAsState(initial = emptyList())
