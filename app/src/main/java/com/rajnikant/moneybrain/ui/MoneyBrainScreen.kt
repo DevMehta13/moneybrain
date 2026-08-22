@@ -403,7 +403,7 @@ private fun MoneyMapCard(map: com.rajnikant.moneybrain.summary.MoneyMap, account
         accounts.forEach { account -> Text("${account.name} · ${map.accountBalances[account.id]?.let(Money::formatPaise) ?: "Set balance"}") }
         Text("Distribution", fontWeight = FontWeight.Medium)
         statuses.forEach { status -> Text("${status.bucket.name} ${Money.formatPaise(status.balancePaise)}${if (status.reservedPaise > 0) " · of which ${Money.formatPaise(status.reservedPaise)} reserved" else ""}", color = if (status.balancePaise < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) }
-        if (map.unallocatedPaise == null) Text("Unallocated — · Set every account balance to see this.")
+        if (map.unallocatedPaise == null || map.untrackedAccountIds.isNotEmpty()) Text("Unallocated — · Set every account balance to see this.")
         else Text("Unallocated ${Money.formatPaise(map.unallocatedPaise)}", color = if (map.unallocatedPaise < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
     } }
 }

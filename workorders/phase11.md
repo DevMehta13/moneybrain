@@ -197,3 +197,14 @@ them (UndoEngine reads both payload keys). Export schema v6.
   this machine. Consequently `./gradlew test` cannot run and Room cannot export schema v6 yet.
 - Remaining work: complete the split/editor, dismissal, bucket-history/manual-control UI, and
   run the full test + migration verification once the Android SDK is available.
+- Completed the envelope-bucket UI: the Buckets tab now opens with the shared money map,
+  salary-credit split cards (with durable Skip), an editable confirmed split editor, arbitrary
+  unallocated-amount splits, and per-bucket add/take-out/move/history controls. Moves use the
+  linked pair store and history deletion uses the paired inverse delete. Credit transaction
+  details also expose “Split into buckets…” and change to “Already split” after application.
+- The split template is retitled throughout and the old salary-only/month-refresh UI path is
+  removed. Account balance set/correct remains undoable through the generic Activity UI.
+- Final verification passed: `./gradlew test`, debug assembly, and install-over-existing-data
+  on the connected Pixel 9. The installed app was force-stopped and cold-launched successfully
+  with no AndroidRuntime/Compose exception; this exercised the live v5→v6 upgrade. Schema v6
+  is exported at `app/schemas/.../6.json`.
