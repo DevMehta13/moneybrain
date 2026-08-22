@@ -115,16 +115,16 @@ ALTER TABLE transactions ADD COLUMN tripId INTEGER;  -- plain column, NO Room Fo
 
 ## Acceptance
 
-- [ ] Migration 4→5 preserves all live data; schema v5 exported.
-- [ ] Equal split of ₹1,000 across 3 shows shares that sum exactly; ledger rows created.
-- [ ] Balances render with correct direction both ways; settle up zeroes the balance AND
+- [x] Migration 4→5 preserves all live data; schema v5 exported.
+- [x] Equal split of ₹1,000 across 3 shows shares that sum exactly; ledger rows created.
+- [x] Balances render with correct direction both ways; settle up zeroes the balance AND
       creates the settlement transaction in the timeline.
-- [ ] "I lent" creates transaction + ledger; "they paid for me" ledger only.
-- [ ] With a trip active: captured OUT files to it (Activity shows TRIP_FILED, undo
+- [x] "I lent" creates transaction + ledger; "they paid for me" ledger only.
+- [x] With a trip active: captured OUT files to it (Activity shows TRIP_FILED, undo
       unfiles); merchants with ACTIVE recurring items are NOT filed; credits are not filed.
-- [ ] Stopping the trip stops filing; trip totals match its transactions.
-- [ ] Only one active trip at a time is possible.
-- [ ] All architect-owned tests pass unmodified.
+- [x] Stopping the trip stops filing; trip totals match its transactions.
+- [x] Only one active trip at a time is possible.
+- [x] All architect-owned tests pass unmodified.
 
 ## Questions
 

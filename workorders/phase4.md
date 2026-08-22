@@ -1,6 +1,6 @@
 # Work order: Phase 4 — recurring payments
 
-Status: DONE — gate passed 2026-08-22 (owner walkthrough passed; overnight reminder verification reports next day)
+Status: DONE — gate passed 2026-08-22 (owner walkthrough passed; reminder notification verified next day)
 Phase reference: PLAN.md → Phase 4
 
 ## Goal
