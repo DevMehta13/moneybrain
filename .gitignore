@@ -11,6 +11,9 @@ captures/
 # OS noise
 .DS_Store
 
+# Personal Claude Code settings (never commit — repo is public)
+.claude/
+
 # Never commit anything personal: masked-SMS staging, tokens, exports
 private/
 *.secret

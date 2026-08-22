@@ -1,6 +1,8 @@
 # Work order: Phase 2, Stage A — SMS permission + inbox scanner
 
-Status: OPEN
+Status: DONE — closed 2026-08-22. Final scan: 251 bank messages, 242 recognised, 9 unrecognised
+(all correctly non-transactional: mandate notices, promo, OTP). Templates cover HDFC UPI
+debit/credit, HDFC NEFT deposits (salary), BoB UPI debit/credit.
 Phase reference: PLAN.md → Phase 2 (first of two stages; live capture is Stage B)
 
 ## Goal
