@@ -122,6 +122,7 @@ class RoomUndoStore(private val database: MoneyBrainDatabase) : UndoStore {
     override suspend fun deleteAccount(id: Long): Boolean = accounts.deleteById(id) > 0
     override suspend fun deleteAllocations(ids: List<Long>): Int =
         if (ids.isEmpty()) 0 else database.bucketAllocationDao().deleteIds(ids)
+    override suspend fun setRecurringNextDue(id: Long, nextDueIso: String): Boolean = database.recurringDao().setNextDue(id, nextDueIso) > 0
 }
 
 class RoomBucketStore(private val database: MoneyBrainDatabase) : BucketStore {

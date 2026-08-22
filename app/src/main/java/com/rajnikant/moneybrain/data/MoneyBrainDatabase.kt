@@ -16,8 +16,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ActionEntity::class,
         UnparsedSmsEntity::class,
         BucketEntity::class, BucketPlanEntity::class, BucketAllocationEntity::class,
+        RecurringEntity::class, RecurringDismissedEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class MoneyBrainDatabase : RoomDatabase() {
@@ -30,13 +31,15 @@ abstract class MoneyBrainDatabase : RoomDatabase() {
     abstract fun bucketDao(): BucketDao
     abstract fun bucketPlanDao(): BucketPlanDao
     abstract fun bucketAllocationDao(): BucketAllocationDao
+    abstract fun recurringDao(): RecurringDao
+    abstract fun recurringDismissedDao(): RecurringDismissedDao
 
     companion object {
         fun create(context: Context): MoneyBrainDatabase = Room.databaseBuilder(
             context,
             MoneyBrainDatabase::class.java,
             "money-brain.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).addCallback(SeedCallback()).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).addCallback(SeedCallback()).build()
     }
 }
 
@@ -49,6 +52,12 @@ private val MIGRATION_2_3 = object : Migration(2, 3) { override fun migrate(db: 
     db.execSQL("CREATE INDEX IF NOT EXISTS index_bucket_allocations_sourceTransactionId ON bucket_allocations(sourceTransactionId)")
     db.execSQL("ALTER TABLE categories ADD COLUMN bucketId INTEGER")
     db.execSQL("ALTER TABLE transactions ADD COLUMN bucketId INTEGER")
+} }
+
+private val MIGRATION_3_4 = object : Migration(3, 4) { override fun migrate(db: SupportSQLiteDatabase) {
+    db.execSQL("CREATE TABLE IF NOT EXISTS recurring (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, merchantKey TEXT, expectedAmountPaise INTEGER NOT NULL, cadence TEXT NOT NULL, nextDue TEXT NOT NULL, anchorDay INTEGER NOT NULL, bucketId INTEGER, status TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS index_recurring_status_nextDue ON recurring(status, nextDue)")
+    db.execSQL("CREATE TABLE IF NOT EXISTS recurring_dismissed (merchantKey TEXT NOT NULL PRIMARY KEY, dismissedAt INTEGER NOT NULL)")
 } }
 
 private val MIGRATION_1_2 = object : Migration(1, 2) {

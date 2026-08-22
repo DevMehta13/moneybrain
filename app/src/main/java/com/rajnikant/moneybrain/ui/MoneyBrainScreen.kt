@@ -76,6 +76,11 @@ import com.rajnikant.moneybrain.viewmodel.BucketsViewModel
 import com.rajnikant.moneybrain.viewmodel.BucketMessage
 import com.rajnikant.moneybrain.buckets.BucketMath
 import com.rajnikant.moneybrain.buckets.PlanEntry
+import com.rajnikant.moneybrain.data.RecurringEntity
+import com.rajnikant.moneybrain.recurring.Cadences
+import com.rajnikant.moneybrain.recurring.RecurringMath
+import com.rajnikant.moneybrain.recurring.RecurringStatus
+import com.rajnikant.moneybrain.recurring.toItem
 import com.rajnikant.moneybrain.viewmodel.MoneyBrainViewModelFactory
 import com.rajnikant.moneybrain.viewmodel.TimelineItem
 import com.rajnikant.moneybrain.viewmodel.TimelineEntry
@@ -94,6 +99,7 @@ private const val timelineRoute = "timeline"
 private const val settingsRoute = "settings"
 private const val activityRoute = "activity"
 private const val bucketsRoute = "buckets"
+private const val recurringRoute = "recurring"
 private const val accountsRoute = "accounts"
 private const val captureRoute = "capture"
 private const val categoryBucketsRoute = "categoryBuckets"
@@ -115,7 +121,7 @@ fun MoneyBrainScreen() {
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: timelineRoute
-    val isTopLevel = route == timelineRoute || route == activityRoute || route == bucketsRoute || route == settingsRoute
+    val isTopLevel = route == timelineRoute || route == activityRoute || route == bucketsRoute || route == recurringRoute || route == settingsRoute
 
     Scaffold(
         bottomBar = {
@@ -153,6 +159,7 @@ fun MoneyBrainScreen() {
                 ActivityScreen(viewModel, onAddManually = { navController.navigate(addRoute) })
             }
             composable(bucketsRoute) { val viewModel: BucketsViewModel = viewModel(factory = factory); BucketsScreen(viewModel) }
+            composable(recurringRoute) { RecurringScreen(database) }
             composable(accountsRoute) {
                 val viewModel: AccountsViewModel = viewModel(factory = factory)
                 AccountsScreen(viewModel, onBack = { navController.popBackStack() })
@@ -210,6 +217,7 @@ private fun BottomBar(navController: NavHostController, route: String) {
             selected = route == bucketsRoute,
             onClick = { navController.navigateTopLevel(bucketsRoute) }, icon = { Text("•") }, label = { Text("Buckets") },
         )
+        NavigationBarItem(selected = route == recurringRoute, onClick = { navController.navigateTopLevel(recurringRoute) }, icon = { Text("•") }, label = { Text("Recurring") })
         NavigationBarItem(
             selected = route == settingsRoute,
             onClick = { navController.navigateTopLevel(settingsRoute) },
@@ -255,14 +263,14 @@ private fun BucketsScreen(viewModel: BucketsViewModel) {
                 item { Text("Plan percentages exceed 100%; entries will be capped in order.", color = MaterialTheme.colorScheme.error) }
             }
             items(statuses, key = { it.bucket.id }) { status ->
-                val remaining = BucketMath.remaining(status.allocated, status.spent, 0)
+                val remaining = BucketMath.remaining(status.allocated, status.spent, status.reserved)
                 val bucketPlans = plans.filter { it.bucketId == status.bucket.id }
                 Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(status.bucket.name, fontWeight = FontWeight.Medium)
                         TextButton(onClick = { viewModel.deleteBucket(status.bucket.id) }) { Text("Remove") }
                     }
-                    Text("Allocated ${Money.formatPaise(status.allocated)} · Spent ${Money.formatPaise(status.spent)} · Remaining ${Money.formatPaise(remaining)}", color = if (remaining < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                    Text("Allocated ${Money.formatPaise(status.allocated)} · Spent ${Money.formatPaise(status.spent)}${if (status.reserved > 0) " · Reserved ${Money.formatPaise(status.reserved)}" else ""} · Remaining ${Money.formatPaise(remaining)}", color = if (remaining < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
                     bucketPlans.forEach { entry ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(if (entry.kind == "PERCENT") "${entry.value / 100}%" else Money.formatPaise(entry.value))
@@ -289,6 +297,31 @@ private fun BucketsScreen(viewModel: BucketsViewModel) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RecurringScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase) {
+    val items by database.recurringDao().observeAll().collectAsState(initial = emptyList())
+    val buckets by database.bucketDao().observeAll().collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
+    var name by remember { mutableStateOf("") }; var amount by remember { mutableStateOf("") }; var due by remember { mutableStateOf("") }
+    var cadence by remember { mutableStateOf(Cadences.MONTHLY) }; var bucketId by remember { mutableStateOf<Long?>(null) }
+    val today = java.time.LocalDate.now().toString()
+    val upcoming = RecurringMath.dueWithin(items.map { it.toItem() }, today, 30)
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { Text("Recurring", style = MaterialTheme.typography.headlineSmall); Text("This month: ${Money.formatPaise(items.filter { it.status == RecurringStatus.ACTIVE && it.nextDue.startsWith(java.time.YearMonth.now().toString()) }.sumOf { it.expectedAmountPaise })}") }
+        item { Text("Upcoming", style = MaterialTheme.typography.titleMedium) }
+        items(upcoming, key = { it.id }) { item -> Text("${item.name} · ${Money.formatPaise(item.expectedAmountPaise)} · ${item.nextDueIso}") }
+        item { Text("Add recurring", style = MaterialTheme.typography.titleMedium) }
+        item { OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth()) }
+        item { OutlinedTextField(amount, { amount = it }, label = { Text("Amount ₹") }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)) }
+        item { OutlinedTextField(due, { due = it }, label = { Text("First due (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth()) }
+        item { Row { listOf(Cadences.WEEKLY, Cadences.MONTHLY, Cadences.YEARLY).forEach { c -> FilterChip(selected = cadence == c, onClick = { cadence = c }, label = { Text(c.lowercase().replaceFirstChar { it.uppercase() }) }) } } }
+        item { BucketPicker(buckets, bucketId) { bucketId = it } }
+        item { Button(onClick = { val parsed = Money.parseToPaise(amount); val date = runCatching { java.time.LocalDate.parse(due) }.getOrNull(); if (name.isNotBlank() && parsed != null && date != null) scope.launch { database.recurringDao().insert(RecurringEntity(name = name.trim(), merchantKey = null, expectedAmountPaise = parsed, cadence = cadence, nextDue = date.toString(), anchorDay = date.dayOfMonth, bucketId = bucketId, status = RecurringStatus.ACTIVE, createdAt = System.currentTimeMillis())); name = ""; amount = ""; due = "" } }) { Text("Add") } }
+        item { Text("All items", style = MaterialTheme.typography.titleMedium) }
+        items(items, key = { it.id }) { item -> Card { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text("${item.name} · ${Money.formatPaise(item.expectedAmountPaise)}"); Text("${item.cadence} · due ${item.nextDue}${if (RecurringMath.isStale(item.toItem(), System.currentTimeMillis())) " · Review this?" else ""}") }; TextButton(onClick = { scope.launch { database.recurringDao().update(item.copy(status = if (item.status == RecurringStatus.ACTIVE) RecurringStatus.PAUSED else RecurringStatus.ACTIVE)) } }) { Text(if (item.status == RecurringStatus.ACTIVE) "Pause" else "Resume") } } } }
     }
 }
 

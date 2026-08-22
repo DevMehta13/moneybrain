@@ -18,6 +18,7 @@ import com.rajnikant.moneybrain.data.RoomRuleStore
 import com.rajnikant.moneybrain.capture.RuleLearner
 import com.rajnikant.moneybrain.capture.RuleStore
 import com.rajnikant.moneybrain.money.Money
+import com.rajnikant.moneybrain.recurring.applyRecurringMatch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -175,7 +176,8 @@ class TransactionEditorViewModel(
             )
             database.withTransaction {
                 if (previous == null) {
-                    transactionDao.insert(transaction)
+                    val id = transactionDao.insert(transaction)
+                    if (transaction.direction == "OUT") transactionDao.getById(id)?.let { applyRecurringMatch(database, it) }
                 } else {
                     transactionDao.update(transaction)
                     if (previous.categoryId != categoryId && transaction.merchant != null && categoryId != null) {

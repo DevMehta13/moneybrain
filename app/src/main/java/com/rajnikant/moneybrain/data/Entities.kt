@@ -70,6 +70,12 @@ data class BucketPlanEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, v
 @Entity(tableName = "bucket_allocations", foreignKeys = [ForeignKey(entity = BucketEntity::class, parentColumns = ["id"], childColumns = ["bucketId"], onDelete = ForeignKey.RESTRICT)], indices = [Index(value = ["month", "bucketId"]), Index(value = ["sourceTransactionId"])])
 data class BucketAllocationEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val bucketId: Long, val month: String, val amountPaise: Long, val sourceTransactionId: Long?, val createdAt: Long)
 
+@Entity(tableName = "recurring", indices = [Index(value = ["status", "nextDue"])])
+data class RecurringEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String, val merchantKey: String?, val expectedAmountPaise: Long, val cadence: String, val nextDue: String, val anchorDay: Int, val bucketId: Long?, val status: String, val createdAt: Long)
+
+@Entity(tableName = "recurring_dismissed")
+data class RecurringDismissedEntity(@PrimaryKey val merchantKey: String, val dismissedAt: Long)
+
 @Entity(
     tableName = "merchant_rules",
     foreignKeys = [

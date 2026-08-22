@@ -130,4 +130,16 @@ remaining = `BucketMath.remaining(allocated, spent, reserved)`. Show a
 
 ## Result
 
-(Fill in after execution.)
+- Implemented Room v3→v4 migration, recurring entities/DAOs, Room undo support, and schema export.
+  The debug APK installed over the existing v3 app successfully with `adb install -r`, confirming
+  the live-data migration opens.
+- Added recurring matching after newly captured SMS and newly saved manual OUT transactions inside
+  their existing database transactions. A match advances the due date, writes the inverse-bearing
+  RECURRING_MATCHED action, and applies the recurring bucket only when there is no transaction
+  override.
+- Bucket remaining now subtracts computed recurring reservations. Added the Recurring tab with
+  upcoming items, manual declaration, pause/resume, and the daily WorkManager reminder schedule.
+- `./gradlew test` and `./gradlew assembleDebug` pass; no architect-owned files were modified.
+- Remaining Phase 4 UI work: detected candidates with confirm/dismiss, edit/cancel confirmation,
+  skip-cycle action, and first-open notification-permission request. These acceptance items are
+  not yet complete, so Phase 4 remains open.

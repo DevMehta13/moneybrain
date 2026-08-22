@@ -7,6 +7,7 @@ import android.provider.Telephony
 import androidx.room.withTransaction
 import com.rajnikant.moneybrain.MoneyBrainApp
 import com.rajnikant.moneybrain.data.RoomCaptureStore
+import com.rajnikant.moneybrain.recurring.applyRecurringMatch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -28,7 +29,10 @@ class SmsReceiver : BroadcastReceiver() {
                 val processor = CaptureProcessor(RoomCaptureStore(app.database))
                 fullBodiesBySender.forEach { (sender, fullBody) ->
                     app.database.withTransaction {
-                        processor.process(sender, fullBody, System.currentTimeMillis())
+                        val outcome = processor.process(sender, fullBody, System.currentTimeMillis())
+                        if (outcome is CaptureOutcome.Captured) {
+                            app.database.transactionDao().getById(outcome.transactionId)?.let { applyRecurringMatch(app.database, it) }
+                        }
                     }
                 }
             } finally {

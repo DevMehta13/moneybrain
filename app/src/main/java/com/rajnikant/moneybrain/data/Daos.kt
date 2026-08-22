@@ -36,6 +36,18 @@ interface TransactionDao {
     suspend fun getById(id: Long): TransactionEntity?
 }
 
+@Dao interface RecurringDao {
+    @Query("SELECT * FROM recurring ORDER BY nextDue, id") fun observeAll(): Flow<List<RecurringEntity>>
+    @Insert suspend fun insert(item: RecurringEntity): Long
+    @Update suspend fun update(item: RecurringEntity)
+    @Query("SELECT * FROM recurring WHERE id = :id") suspend fun getById(id: Long): RecurringEntity?
+    @Query("UPDATE recurring SET nextDue = :iso WHERE id = :id") suspend fun setNextDue(id: Long, iso: String): Int
+}
+@Dao interface RecurringDismissedDao {
+    @Query("SELECT * FROM recurring_dismissed") fun observeAll(): Flow<List<RecurringDismissedEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insert(item: RecurringDismissedEntity)
+}
+
 @Dao
 interface AccountDao {
     @Query("SELECT * FROM accounts ORDER BY createdAt ASC, id ASC")
