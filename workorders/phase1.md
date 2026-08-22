@@ -104,6 +104,30 @@ no `toDouble()` on money anywhere — treat any such line as a bug.
 
 ## Result
 
-(Fill in after execution: what was built, versions added to the catalog, test output summary,
-device smoke-test notes, anything that deviated from this order, anything the architect
-should look at.)
+Implemented the Phase 1 database and manual-entry foundation:
+
+- Added Room database version 1 with exported schema at
+  `app/schemas/com.rajnikant.moneybrain.data.MoneyBrainDatabase/1.json`; there is no
+  destructive-migration fallback. Accounts, categories, and transactions use the requested
+  fields, foreign keys, RESTRICT deletion behavior, and indices. The unique nullable
+  fingerprint index is present for Phase 2 deduplication.
+- First-run seeding creates Bank and Cash accounts plus the nine requested categories in the
+  specified order.
+- Added `MoneyBrainApp` database ownership, direct DAO ViewModel wiring through a small
+  `ViewModelProvider.Factory`, a Timeline/Settings bottom navigation layout, add/edit/delete
+  transaction flow, grouped reactive timeline, and Accounts management (add only; no delete).
+  The add screen defaults to Cash and saves immediately when a category is tapped. Edit has a
+  confirmation dialog before delete. All on-screen amounts use the architect-owned `Money` API.
+- Added only the allowed dependencies and catalog versions: Room 2.8.4, KSP
+  2.2.10-2.0.2, lifecycle-viewmodel-compose 2.11.0, and navigation-compose 2.9.8.
+  `android.disallowKotlinSourceSets=false` is required as a KSP compatibility setting with the
+  current AGP built-in Kotlin setup; AGP reports it as experimental, so the architect should
+  review this compatibility setting before a future Kotlin/AGP upgrade.
+- `./gradlew test` passed. The architect-owned `MoneyTest` ran unchanged: 25 tests, 0 failures,
+  0 errors. `./gradlew assembleDebug` also passed.
+- Installed and launched on the connected Google Pixel 9 (Android 17). Room created the on-device
+  database successfully and Timeline opened with its empty-state screen. No test transaction was
+  saved. The automated add/edit/delete smoke flow could not be completed because TalkBack on the
+  phone intercepted the adb-driven touch input; its accessibility configuration was left unchanged.
+  Manual smoke testing of add, edit, delete, and persistence across a phone restart remains for
+  Rajnikant before the phase gate can be declared passed.
