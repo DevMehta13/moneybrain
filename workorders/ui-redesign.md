@@ -1,6 +1,6 @@
 # Work order: Phase 12 — Modernist UI re-skin (BUILD & REPORT ONLY)
 
-Status: OPEN
+Status: DONE — built first try; owner approved the new UI on device 2026-08-23
 Phase reference: PLAN.md → Phase 12. Design spec: `design_handoff_moneybrain_ui/README.md`.
 
 ## Role change for this phase — read carefully
