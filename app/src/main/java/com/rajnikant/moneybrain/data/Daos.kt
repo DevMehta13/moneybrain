@@ -97,7 +97,7 @@ interface CategoryDao {
     @Insert suspend fun insert(bucket: BucketEntity): Long
     @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM buckets") suspend fun maxSortOrder(): Int
     @Query("DELETE FROM buckets WHERE id = :id") suspend fun deleteById(id: Long): Int
-    @Query("SELECT EXISTS(SELECT 1 FROM bucket_allocations WHERE bucketId = :id)") suspend fun hasAllocations(id: Long): Boolean
+    @Query("SELECT EXISTS(SELECT 1 FROM bucket_entries WHERE bucketId = :id)") suspend fun hasEntries(id: Long): Boolean
 }
 @Dao interface BucketPlanDao {
     @Query("SELECT * FROM bucket_plan ORDER BY sortOrder, id") fun observeAll(): Flow<List<BucketPlanEntity>>
@@ -107,12 +107,24 @@ interface CategoryDao {
     @Query("DELETE FROM bucket_plan WHERE id = :id") suspend fun deleteById(id: Long): Int
     @Query("DELETE FROM bucket_plan WHERE bucketId = :bucketId") suspend fun deleteForBucket(bucketId: Long): Int
 }
-@Dao interface BucketAllocationDao {
-    @Insert suspend fun insert(allocation: BucketAllocationEntity): Long
-    @Query("SELECT EXISTS(SELECT 1 FROM bucket_allocations WHERE sourceTransactionId = :id)") suspend fun existsForSource(id: Long): Boolean
-    @Query("DELETE FROM bucket_allocations WHERE id IN (:ids)") suspend fun deleteIds(ids: List<Long>): Int
-    @Query("SELECT * FROM bucket_allocations WHERE month = :month") fun observeMonth(month: String): Flow<List<BucketAllocationEntity>>
-    @Query("SELECT DISTINCT sourceTransactionId FROM bucket_allocations WHERE sourceTransactionId IS NOT NULL") fun observeSourceTransactionIds(): Flow<List<Long>>
+@Dao interface BucketEntryDao {
+    @Insert suspend fun insert(entry: BucketEntryEntity): Long
+    @Query("UPDATE bucket_entries SET counterpartEntryId = :counterpartId WHERE id = :id") suspend fun setCounterpart(id: Long, counterpartId: Long)
+    @Query("SELECT EXISTS(SELECT 1 FROM bucket_entries WHERE sourceTransactionId = :id)") suspend fun existsForSource(id: Long): Boolean
+    @Query("SELECT * FROM bucket_entries ORDER BY createdAt DESC, id DESC") fun observeAll(): Flow<List<BucketEntryEntity>>
+    @Query("SELECT * FROM bucket_entries WHERE bucketId = :bucketId ORDER BY createdAt DESC, id DESC") fun observeForBucket(bucketId: Long): Flow<List<BucketEntryEntity>>
+    @Query("SELECT counterpartEntryId FROM bucket_entries WHERE id IN (:ids) AND counterpartEntryId IS NOT NULL") suspend fun counterpartsFor(ids: List<Long>): List<Long>
+    @Query("DELETE FROM bucket_entries WHERE id IN (:ids)") suspend fun deleteIds(ids: List<Long>): Int
+}
+@Dao interface BalanceSnapshotDao {
+    @Insert suspend fun insert(snapshot: BalanceSnapshotEntity): Long
+    @Query("SELECT * FROM balance_snapshots") fun observeAll(): Flow<List<BalanceSnapshotEntity>>
+    @Query("SELECT * FROM balance_snapshots") suspend fun getAll(): List<BalanceSnapshotEntity>
+    @Query("DELETE FROM balance_snapshots WHERE id = :id") suspend fun deleteById(id: Long): Int
+}
+@Dao interface SplitDismissedDao {
+    @Query("SELECT * FROM split_dismissed") fun observeAll(): Flow<List<SplitDismissedEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insert(item: SplitDismissedEntity)
 }
 
 @Dao

@@ -6,9 +6,9 @@ import androidx.room.withTransaction
 import com.rajnikant.moneybrain.buckets.PlanKinds
 import com.rajnikant.moneybrain.buckets.PlanEntry
 import com.rajnikant.moneybrain.buckets.SplitOutcome
+import com.rajnikant.moneybrain.buckets.SplitLine
 import com.rajnikant.moneybrain.money.Money
 import com.rajnikant.moneybrain.buckets.BucketSplitter
-import com.rajnikant.moneybrain.buckets.SalaryDetector
 import com.rajnikant.moneybrain.data.RoomBucketStore
 import com.rajnikant.moneybrain.data.BucketEntity
 import com.rajnikant.moneybrain.data.BucketPlanEntity
@@ -16,15 +16,10 @@ import com.rajnikant.moneybrain.data.MoneyBrainDatabase
 import com.rajnikant.moneybrain.summary.BucketStatus
 import com.rajnikant.moneybrain.summary.bucketStatuses
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
-import java.time.YearMonth
-import java.time.Instant
-import java.time.ZoneId
 
 sealed interface BucketMessage {
     data class Text(val value: String) : BucketMessage
@@ -33,14 +28,10 @@ sealed interface BucketMessage {
 class BucketsViewModel(private val db: MoneyBrainDatabase) : ViewModel() {
     val buckets = db.bucketDao().observeAll()
     val plans = db.bucketPlanDao().observeAll()
-    private val currentMonth = MutableStateFlow(YearMonth.now().toString())
-    val status = currentMonth.flatMapLatest { month -> combine(buckets, db.bucketAllocationDao().observeMonth(month), db.transactionDao().observeAll(), db.categoryDao().observeAll(), db.recurringDao().observeAll()) { bs, allocations, txs, categories, recurring -> bucketStatuses(bs, allocations, txs, categories, recurring, month) } }
-    val salaryCandidates = combine(db.transactionDao().observeAll(), db.bucketAllocationDao().observeSourceTransactionIds()) { txs, sources ->
-        txs.filter { SalaryDetector.looksLikeSalary(it.direction, it.merchant) && YearMonth.from(Instant.ofEpochMilli(it.occurredAt).atZone(ZoneId.systemDefault())).toString() == currentMonth.value && it.id !in sources }
-    }
+    val entries = db.bucketEntryDao().observeAll()
+    val status = combine(buckets, entries, db.transactionDao().observeAll(), db.categoryDao().observeAll(), db.recurringDao().observeAll()) { bs, ledger, txs, categories, recurring -> bucketStatuses(bs, ledger, txs, categories, recurring, java.time.YearMonth.now().toString()) }
     private val _messages = Channel<BucketMessage>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
-    fun refreshMonth() { currentMonth.value = YearMonth.now().toString() }
 
     fun addBucket(name: String) = viewModelScope.launch {
         if (name.isNotBlank()) {
@@ -74,19 +65,22 @@ class BucketsViewModel(private val db: MoneyBrainDatabase) : ViewModel() {
     }
 
     fun deleteBucket(id: Long) = viewModelScope.launch {
-        if (db.bucketDao().hasAllocations(id)) {
-            _messages.send(BucketMessage.Text("This bucket has allocations"))
+        if (db.bucketDao().hasEntries(id)) {
+            _messages.send(BucketMessage.Text("Move its money out first."))
         } else {
             db.bucketDao().deleteById(id)
         }
     }
 
-    fun splitSalary(id: Long, amount: Long, occurredAt: Long) = viewModelScope.launch {
-        val month = YearMonth.from(Instant.ofEpochMilli(occurredAt).atZone(ZoneId.systemDefault())).toString()
-        when (val outcome = db.withTransaction { BucketSplitter(RoomBucketStore(db)).splitSalary(id, amount, month, db.bucketPlanDao().observeAll().first().map { PlanEntry(it.bucketId, it.kind, it.value) }, System.currentTimeMillis()) }) {
-            is SplitOutcome.Done -> _messages.send(BucketMessage.Text("${Money.formatPaise(outcome.result.lines.sumOf { it.amountPaise })} allocated, ${Money.formatPaise(outcome.result.unallocatedPaise)} unallocated"))
-            SplitOutcome.AlreadySplit -> _messages.send(BucketMessage.Text("This salary was already split"))
-            SplitOutcome.EmptyPlan -> _messages.send(BucketMessage.Text("Add a bucket plan before splitting this salary"))
+    fun applySplit(sourceTransactionId: Long?, amount: Long, lines: List<SplitLine>) = viewModelScope.launch {
+        when (val outcome = db.withTransaction { BucketSplitter(RoomBucketStore(db)).applySplit(sourceTransactionId, amount, lines, System.currentTimeMillis()) }) {
+            is SplitOutcome.Done -> _messages.send(BucketMessage.Text("${Money.formatPaise(amount - outcome.leftoverPaise)} allocated, ${Money.formatPaise(outcome.leftoverPaise)} left unallocated"))
+            SplitOutcome.AlreadySplit -> _messages.send(BucketMessage.Text("Already split"))
+            SplitOutcome.NothingToWrite -> _messages.send(BucketMessage.Text("Nothing to split"))
+            is SplitOutcome.Invalid -> _messages.send(BucketMessage.Text("Split is invalid"))
         }
     }
+    fun adjust(bucketId: Long, signedAmount: Long, note: String?) = viewModelScope.launch { db.withTransaction { BucketSplitter(RoomBucketStore(db)).adjust(bucketId, signedAmount, note, System.currentTimeMillis()) } }
+    fun move(fromBucketId: Long, toBucketId: Long, amount: Long) = viewModelScope.launch { db.withTransaction { BucketSplitter(RoomBucketStore(db)).move(fromBucketId, toBucketId, amount, System.currentTimeMillis()) } }
+    fun deleteEntry(id: Long) = viewModelScope.launch { db.withTransaction { val dao = db.bucketEntryDao(); dao.deleteIds((listOf(id) + dao.counterpartsFor(listOf(id))).distinct()) } }
 }

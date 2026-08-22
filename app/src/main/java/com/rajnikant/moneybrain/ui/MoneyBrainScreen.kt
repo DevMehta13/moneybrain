@@ -102,6 +102,7 @@ import com.rajnikant.moneybrain.summary.activeTripSummary
 import com.rajnikant.moneybrain.summary.peopleSummary
 import com.rajnikant.moneybrain.summary.upcomingRecurring
 import com.rajnikant.moneybrain.summary.bucketStatuses
+import com.rajnikant.moneybrain.summary.moneyMap
 import com.rajnikant.moneybrain.summary.detectedRecurring
 import com.rajnikant.moneybrain.summary.tripTotal
 import java.time.Instant
@@ -261,7 +262,7 @@ private fun BottomBar(navController: NavHostController, route: String) {
 @Composable
 private fun OverviewScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBuckets: () -> Unit, onRecurring: () -> Unit, onTrip: (Long) -> Unit, onPeople: () -> Unit, onTransaction: (Long) -> Unit, onTimeline: (Boolean) -> Unit, onActivity: () -> Unit) {
     val buckets by database.bucketDao().observeAll().collectAsState(initial = emptyList())
-    val allocations by database.bucketAllocationDao().observeMonth(java.time.YearMonth.now().toString()).collectAsState(initial = emptyList())
+    val entries by database.bucketEntryDao().observeAll().collectAsState(initial = emptyList())
     val transactions by database.transactionDao().observeAll().collectAsState(initial = emptyList())
     val categories by database.categoryDao().observeAll().collectAsState(initial = emptyList())
     val recurring by database.recurringDao().observeAll().collectAsState(initial = emptyList())
@@ -269,7 +270,10 @@ private fun OverviewScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDat
     val trips by database.tripDao().observeAll().collectAsState(initial = emptyList())
     val peopleBalances by database.personLedgerDao().observeBalances().collectAsState(initial = emptyList())
     val unresolved by database.unparsedSmsDao().observeUnresolved().collectAsState(initial = emptyList())
-    val statuses = bucketStatuses(buckets, allocations, transactions, categories, recurring, java.time.YearMonth.now().toString())
+    val statuses = bucketStatuses(buckets, entries, transactions, categories, recurring, java.time.YearMonth.now().toString())
+    val accounts by database.accountDao().observeAll().collectAsState(initial = emptyList())
+    val snapshots by database.balanceSnapshotDao().observeAll().collectAsState(initial = emptyList())
+    val moneyMap = moneyMap(accounts, snapshots, transactions, statuses)
     val upcoming = upcomingRecurring(recurring, java.time.LocalDate.now().toString())
     val trip = activeTripSummary(trips, transactions)
     val people = peopleSummary(peopleBalances)
@@ -278,7 +282,8 @@ private fun OverviewScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDat
     LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (unresolved.isNotEmpty() || uncategorised > 0 || detected.isNotEmpty()) item { Card { Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) { if (unresolved.isNotEmpty()) TextButton(onClick = onActivity) { Text("${unresolved.size} unrecognised SMS") }; if (uncategorised > 0) TextButton(onClick = { onTimeline(true) }) { Text("$uncategorised uncategorised") }; if (detected.isNotEmpty()) TextButton(onClick = onRecurring) { Text("${detected.size} detected recurring") } } } }
         item { Text("Overview", style = MaterialTheme.typography.headlineSmall) }
-        item { Card(Modifier.fillMaxWidth().clickable(onClick = onBuckets)) { Column(Modifier.padding(12.dp)) { Text("Buckets", fontWeight = FontWeight.Medium); statuses.forEach { status -> Text("${status.bucket.name} · Remaining ${Money.formatPaise(status.remaining)}", color = if (status.remaining < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) } } } }
+        moneyMap.totalPaise?.let { total -> item { TextButton(onClick = onBuckets) { Text("Total balance ${Money.formatPaise(total)}") } } }
+        item { Card(Modifier.fillMaxWidth().clickable(onClick = onBuckets)) { Column(Modifier.padding(12.dp)) { Text("Buckets", fontWeight = FontWeight.Medium); statuses.forEach { status -> Text("${status.bucket.name} · Available ${Money.formatPaise(status.availablePaise)}", color = if (status.availablePaise < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) } } } }
         item { Card(Modifier.fillMaxWidth().clickable(onClick = onRecurring)) { Column(Modifier.padding(12.dp)) { Text("Upcoming bills", fontWeight = FontWeight.Medium); Text("This month ${Money.formatPaise(recurring.filter { it.status == RecurringStatus.ACTIVE && it.nextDue.startsWith(java.time.YearMonth.now().toString()) }.sumOf { it.expectedAmountPaise })}"); upcoming.take(3).forEach { Text("${it.name} · ${Money.formatPaise(it.expectedAmountPaise)} · ${it.nextDueIso}") } } } }
         trip?.let { active -> item { Card(Modifier.fillMaxWidth().clickable { onTrip(active.trip.id) }) { Column(Modifier.padding(12.dp)) { Text("Active trip", fontWeight = FontWeight.Medium); Text("${active.trip.name} · ${Money.formatPaise(active.total)}") } } } }
         item { Card(Modifier.fillMaxWidth().clickable(onClick = onPeople)) { Column(Modifier.padding(12.dp)) { Text("People", fontWeight = FontWeight.Medium); Text("Owed to you ${Money.formatPaise(people.owedToYou)} · You owe ${Money.formatPaise(people.youOwe)}") } } }
@@ -290,10 +295,8 @@ private fun OverviewScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDat
 
 @Composable
 private fun BucketsScreen(viewModel: BucketsViewModel) {
-    LaunchedEffect(Unit) { viewModel.refreshMonth() }
     val statuses by viewModel.status.collectAsState(initial = emptyList())
     val plans by viewModel.plans.collectAsState(initial = emptyList())
-    val salaries by viewModel.salaryCandidates.collectAsState(initial = emptyList())
     val snackbarHostState = remember { SnackbarHostState() }
     var name by remember { mutableStateOf("") }
     LaunchedEffect(viewModel) {
@@ -304,20 +307,6 @@ private fun BucketsScreen(viewModel: BucketsViewModel) {
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(innerPadding), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Buckets", style = MaterialTheme.typography.headlineSmall) }
-            salaries.forEach { salary ->
-                item {
-                    val plan = plans.map { PlanEntry(it.bucketId, it.kind, it.value) }
-                    val preview = BucketMath.split(salary.amountPaise, plan)
-                    Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Salary detected: ${Money.formatPaise(salary.amountPaise)} — split into buckets?")
-                        preview.lines.forEach { line ->
-                            Text("${statuses.firstOrNull { it.bucket.id == line.bucketId }?.bucket?.name ?: "Deleted bucket"}: ${Money.formatPaise(line.amountPaise)}")
-                        }
-                        Text("Unallocated: ${Money.formatPaise(preview.unallocatedPaise)}")
-                        Button(onClick = { viewModel.splitSalary(salary.id, salary.amountPaise, salary.occurredAt) }) { Text("Split now") }
-                    } }
-                }
-            }
             item { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("New bucket") }); Button(onClick = { viewModel.addBucket(name); name = "" }, enabled = name.isNotBlank()) { Text("Add bucket") } }
             val planEntries = plans.map { PlanEntry(it.bucketId, it.kind, it.value) }
             item { Text("Plan totals: ${BucketMath.totalPercentBp(planEntries) / 100}% · Fixed ${Money.formatPaise(BucketMath.totalFixedPaise(planEntries))}") }
@@ -325,14 +314,14 @@ private fun BucketsScreen(viewModel: BucketsViewModel) {
                 item { Text("Plan percentages exceed 100%; entries will be capped in order.", color = MaterialTheme.colorScheme.error) }
             }
             items(statuses, key = { it.bucket.id }) { status ->
-                val remaining = BucketMath.remaining(status.allocated, status.spent, status.reserved)
+                val available = status.availablePaise
                 val bucketPlans = plans.filter { it.bucketId == status.bucket.id }
                 Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(status.bucket.name, fontWeight = FontWeight.Medium)
                         TextButton(onClick = { viewModel.deleteBucket(status.bucket.id) }) { Text("Remove") }
                     }
-                    Text("Allocated ${Money.formatPaise(status.allocated)} · Spent ${Money.formatPaise(status.spent)}${if (status.reserved > 0) " · Reserved ${Money.formatPaise(status.reserved)}" else ""} · Remaining ${Money.formatPaise(remaining)}", color = if (remaining < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                    Text("Balance ${Money.formatPaise(status.balancePaise)} · Available ${Money.formatPaise(available)}${if (status.reservedPaise > 0) " · Reserved ${Money.formatPaise(status.reservedPaise)}" else ""}", color = if (available < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
                     bucketPlans.forEach { entry ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(if (entry.kind == "PERCENT") "${entry.value / 100}%" else Money.formatPaise(entry.value))

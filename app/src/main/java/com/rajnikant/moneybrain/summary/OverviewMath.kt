@@ -1,7 +1,10 @@
 package com.rajnikant.moneybrain.summary
 
-import com.rajnikant.moneybrain.buckets.BucketMath
-import com.rajnikant.moneybrain.data.BucketAllocationEntity
+import com.rajnikant.moneybrain.buckets.BucketLedger
+import com.rajnikant.moneybrain.buckets.LedgerEntry
+import com.rajnikant.moneybrain.data.AccountEntity
+import com.rajnikant.moneybrain.data.BalanceSnapshotEntity
+import com.rajnikant.moneybrain.data.BucketEntryEntity
 import com.rajnikant.moneybrain.data.BucketEntity
 import com.rajnikant.moneybrain.data.CategoryEntity
 import com.rajnikant.moneybrain.data.PersonBalance
@@ -15,34 +18,46 @@ import com.rajnikant.moneybrain.recurring.RecurringStatus
 import com.rajnikant.moneybrain.recurring.Occurrence
 import com.rajnikant.moneybrain.recurring.toItem
 import com.rajnikant.moneybrain.capture.CaptureProcessor
+import com.rajnikant.moneybrain.money.BalanceMath
+import com.rajnikant.moneybrain.money.BalanceSnapshot
+import com.rajnikant.moneybrain.money.BalanceTxn
 import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
 
-data class BucketStatus(val bucket: BucketEntity, val allocated: Long, val spent: Long, val reserved: Long) {
-    val remaining: Long get() = BucketMath.remaining(allocated, spent, reserved)
+data class BucketStatus(val bucket: BucketEntity, val balancePaise: Long, val spentPaise: Long, val reservedPaise: Long) {
+    val availablePaise: Long get() = BucketLedger.available(balancePaise, reservedPaise)
 }
+data class MoneyMap(val totalPaise: Long?, val accountBalances: Map<Long, Long?>, val untrackedAccountIds: List<Long>, val unallocatedPaise: Long?)
 
 data class PeopleSummary(val owedToYou: Long, val youOwe: Long)
 data class ActiveTripSummary(val trip: TripEntity, val total: Long)
 
 fun bucketStatuses(
-    buckets: List<BucketEntity>, allocations: List<BucketAllocationEntity>, transactions: List<TransactionEntity>,
+    buckets: List<BucketEntity>, entries: List<BucketEntryEntity>, transactions: List<TransactionEntity>,
     categories: List<CategoryEntity>, recurring: List<RecurringEntity>, monthText: String,
 ): List<BucketStatus> {
     val month = YearMonth.parse(monthText)
+    val ledger = entries.map { LedgerEntry(it.id, it.bucketId, it.amountPaise, it.kind) }
     return buckets.map { bucket ->
+        val spent = transactions.filter { transaction ->
+            transaction.direction == "OUT" &&
+                (transaction.bucketId == bucket.id || (transaction.bucketId == null && categories.firstOrNull { it.id == transaction.categoryId }?.bucketId == bucket.id))
+        }.sumOf { it.amountPaise }
+        val reserved = RecurringMath.reservedForBucket(recurring.map { it.toItem() }, month, bucket.id)
         BucketStatus(
             bucket,
-            allocations.filter { it.bucketId == bucket.id }.sumOf { it.amountPaise },
-            transactions.filter { transaction ->
-                transaction.direction == "OUT" &&
-                    YearMonth.from(Instant.ofEpochMilli(transaction.occurredAt).atZone(ZoneId.systemDefault())).toString() == monthText &&
-                    (transaction.bucketId == bucket.id || (transaction.bucketId == null && categories.firstOrNull { it.id == transaction.categoryId }?.bucketId == bucket.id))
-            }.sumOf { it.amountPaise },
-            RecurringMath.reservedForBucket(recurring.map { it.toItem() }, month, bucket.id),
+            BucketLedger.balance(bucket.id, ledger, spent), spent, reserved,
         )
     }
+}
+
+fun moneyMap(accounts: List<AccountEntity>, snapshots: List<BalanceSnapshotEntity>, transactions: List<TransactionEntity>, bucketStatuses: List<BucketStatus>): MoneyMap {
+    val balanceSnapshots = snapshots.map { BalanceSnapshot(it.id, it.accountId, it.balancePaise, it.asOfMillis) }
+    val balanceTransactions = transactions.map { BalanceTxn(it.accountId, it.amountPaise, it.direction, it.occurredAt) }
+    val total = BalanceMath.totalBalance(accounts.map { it.id }, balanceSnapshots, balanceTransactions)
+    val balances = accounts.associate { it.id to BalanceMath.accountBalance(it.id, balanceSnapshots, balanceTransactions) }
+    return MoneyMap(total.totalPaise, balances, total.untrackedAccountIds, BucketLedger.unallocated(total.totalPaise, bucketStatuses.map { it.balancePaise }))
 }
 
 fun peopleSummary(balances: List<PersonBalance>): PeopleSummary = PeopleSummary(

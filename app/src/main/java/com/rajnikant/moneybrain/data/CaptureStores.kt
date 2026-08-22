@@ -125,16 +125,28 @@ class RoomUndoStore(private val database: MoneyBrainDatabase) : UndoStore {
     override suspend fun deleteRule(id: Long): Boolean = rules.deleteById(id) > 0
     override suspend fun accountHasTransactions(id: Long): Boolean = accounts.hasTransactions(id)
     override suspend fun deleteAccount(id: Long): Boolean = accounts.deleteById(id) > 0
-    override suspend fun deleteAllocations(ids: List<Long>): Int =
-        if (ids.isEmpty()) 0 else database.bucketAllocationDao().deleteIds(ids)
+    override suspend fun deleteBucketEntries(ids: List<Long>): Int =
+        if (ids.isEmpty()) 0 else database.withTransaction {
+            val entries = database.bucketEntryDao()
+            entries.deleteIds((ids + entries.counterpartsFor(ids)).distinct())
+        }
+    override suspend fun deleteBalanceSnapshot(id: Long): Boolean = database.balanceSnapshotDao().deleteById(id) > 0
     override suspend fun setRecurringNextDue(id: Long, nextDueIso: String): Boolean = database.recurringDao().setNextDue(id, nextDueIso) > 0
     override suspend fun setTransactionTrip(id: Long, tripId: Long?): Boolean = transactions.setTrip(id, tripId) > 0
 }
 
 class RoomBucketStore(private val database: MoneyBrainDatabase) : BucketStore {
-    override suspend fun insertAllocation(bucketId: Long, month: String, amountPaise: Long, sourceTransactionId: Long?, createdAt: Long): Long =
-        database.bucketAllocationDao().insert(BucketAllocationEntity(bucketId = bucketId, month = month, amountPaise = amountPaise, sourceTransactionId = sourceTransactionId, createdAt = createdAt))
-    override suspend fun allocationsExistForSource(transactionId: Long): Boolean = database.bucketAllocationDao().existsForSource(transactionId)
+    override suspend fun insertEntry(bucketId: Long, amountPaise: Long, kind: String, sourceTransactionId: Long?, note: String?, createdAt: Long): Long =
+        database.bucketEntryDao().insert(BucketEntryEntity(bucketId = bucketId, amountPaise = amountPaise, kind = kind, sourceTransactionId = sourceTransactionId, note = note, createdAt = createdAt))
+    override suspend fun insertMovePair(fromBucketId: Long, toBucketId: Long, amountPaise: Long, createdAt: Long): Pair<Long, Long> {
+        val entries = database.bucketEntryDao()
+        val fromId = entries.insert(BucketEntryEntity(bucketId = fromBucketId, amountPaise = -amountPaise, kind = com.rajnikant.moneybrain.buckets.EntryKinds.MOVE, sourceTransactionId = null, createdAt = createdAt))
+        val toId = entries.insert(BucketEntryEntity(bucketId = toBucketId, amountPaise = amountPaise, kind = com.rajnikant.moneybrain.buckets.EntryKinds.MOVE, sourceTransactionId = null, createdAt = createdAt))
+        entries.setCounterpart(fromId, toId)
+        entries.setCounterpart(toId, fromId)
+        return fromId to toId
+    }
+    override suspend fun entriesExistForSource(transactionId: Long): Boolean = database.bucketEntryDao().existsForSource(transactionId)
     override suspend fun recordAction(kind: String, targetType: String, targetId: Long, description: String, payload: Map<String, String>, createdAt: Long) {
         database.actionDao().insert(ActionEntity(kind = kind, targetType = targetType, targetId = targetId, description = description, payload = ActionPayload.encode(payload), createdAt = createdAt))
     }

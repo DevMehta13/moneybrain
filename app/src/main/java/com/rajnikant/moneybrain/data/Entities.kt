@@ -68,8 +68,14 @@ data class BucketEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val n
 @Entity(tableName = "bucket_plan", foreignKeys = [ForeignKey(entity = BucketEntity::class, parentColumns = ["id"], childColumns = ["bucketId"], onDelete = ForeignKey.CASCADE)], indices = [Index(value = ["bucketId"])])
 data class BucketPlanEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val bucketId: Long, val kind: String, val value: Long, val sortOrder: Int)
 
-@Entity(tableName = "bucket_allocations", foreignKeys = [ForeignKey(entity = BucketEntity::class, parentColumns = ["id"], childColumns = ["bucketId"], onDelete = ForeignKey.RESTRICT)], indices = [Index(value = ["month", "bucketId"]), Index(value = ["sourceTransactionId"])])
-data class BucketAllocationEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val bucketId: Long, val month: String, val amountPaise: Long, val sourceTransactionId: Long?, val createdAt: Long)
+@Entity(tableName = "bucket_entries", foreignKeys = [ForeignKey(entity = BucketEntity::class, parentColumns = ["id"], childColumns = ["bucketId"], onDelete = ForeignKey.RESTRICT)], indices = [Index(value = ["bucketId"]), Index(value = ["sourceTransactionId"])])
+data class BucketEntryEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val bucketId: Long, val amountPaise: Long, val kind: String, val sourceTransactionId: Long?, val counterpartEntryId: Long? = null, val note: String? = null, val createdAt: Long)
+
+@Entity(tableName = "balance_snapshots", foreignKeys = [ForeignKey(entity = AccountEntity::class, parentColumns = ["id"], childColumns = ["accountId"], onDelete = ForeignKey.RESTRICT)], indices = [Index(value = ["accountId", "asOfMillis"])])
+data class BalanceSnapshotEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val accountId: Long, val balancePaise: Long, val asOfMillis: Long, val deltaPaise: Long?, val createdAt: Long)
+
+@Entity(tableName = "split_dismissed")
+data class SplitDismissedEntity(@PrimaryKey val transactionId: Long, val dismissedAt: Long)
 
 @Entity(tableName = "recurring", indices = [Index(value = ["status", "nextDue"])])
 data class RecurringEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String, val merchantKey: String?, val expectedAmountPaise: Long, val cadence: String, val nextDue: String, val anchorDay: Int, val bucketId: Long?, val status: String, val createdAt: Long)

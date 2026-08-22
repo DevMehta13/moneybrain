@@ -15,11 +15,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MerchantRuleEntity::class,
         ActionEntity::class,
         UnparsedSmsEntity::class,
-        BucketEntity::class, BucketPlanEntity::class, BucketAllocationEntity::class,
+        BucketEntity::class, BucketPlanEntity::class, BucketEntryEntity::class,
+        BalanceSnapshotEntity::class, SplitDismissedEntity::class,
         RecurringEntity::class, RecurringDismissedEntity::class,
         TripEntity::class, PersonEntity::class, PersonLedgerEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class MoneyBrainDatabase : RoomDatabase() {
@@ -31,7 +32,9 @@ abstract class MoneyBrainDatabase : RoomDatabase() {
     abstract fun unparsedSmsDao(): UnparsedSmsDao
     abstract fun bucketDao(): BucketDao
     abstract fun bucketPlanDao(): BucketPlanDao
-    abstract fun bucketAllocationDao(): BucketAllocationDao
+    abstract fun bucketEntryDao(): BucketEntryDao
+    abstract fun balanceSnapshotDao(): BalanceSnapshotDao
+    abstract fun splitDismissedDao(): SplitDismissedDao
     abstract fun recurringDao(): RecurringDao
     abstract fun recurringDismissedDao(): RecurringDismissedDao
     abstract fun tripDao(): TripDao
@@ -43,7 +46,7 @@ abstract class MoneyBrainDatabase : RoomDatabase() {
             context,
             MoneyBrainDatabase::class.java,
             "money-brain.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).addCallback(SeedCallback()).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).addCallback(SeedCallback()).build()
     }
 }
 
@@ -64,6 +67,17 @@ private val MIGRATION_3_4 = object : Migration(3, 4) { override fun migrate(db: 
     db.execSQL("CREATE TABLE IF NOT EXISTS recurring_dismissed (merchantKey TEXT NOT NULL PRIMARY KEY, dismissedAt INTEGER NOT NULL)")
 } }
 private val MIGRATION_4_5 = object : Migration(4, 5) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("CREATE TABLE IF NOT EXISTS trips (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, startedAt INTEGER NOT NULL, endedAt INTEGER, createdAt INTEGER NOT NULL)"); db.execSQL("CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, createdAt INTEGER NOT NULL)"); db.execSQL("CREATE TABLE IF NOT EXISTS person_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, personId INTEGER NOT NULL REFERENCES people(id) ON DELETE RESTRICT, amountPaise INTEGER NOT NULL, kind TEXT NOT NULL, transactionId INTEGER, note TEXT, createdAt INTEGER NOT NULL)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_person_ledger_personId ON person_ledger(personId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_person_ledger_transactionId ON person_ledger(transactionId)"); db.execSQL("ALTER TABLE transactions ADD COLUMN tripId INTEGER") } }
+
+private val MIGRATION_5_6 = object : Migration(5, 6) { override fun migrate(db: SupportSQLiteDatabase) {
+    db.execSQL("CREATE TABLE bucket_entries (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, bucketId INTEGER NOT NULL REFERENCES buckets(id) ON DELETE RESTRICT, amountPaise INTEGER NOT NULL, kind TEXT NOT NULL, sourceTransactionId INTEGER, counterpartEntryId INTEGER, note TEXT, createdAt INTEGER NOT NULL)")
+    db.execSQL("CREATE INDEX index_bucket_entries_bucketId ON bucket_entries(bucketId)")
+    db.execSQL("CREATE INDEX index_bucket_entries_sourceTransactionId ON bucket_entries(sourceTransactionId)")
+    db.execSQL("INSERT INTO bucket_entries (id, bucketId, amountPaise, kind, sourceTransactionId, createdAt) SELECT id, bucketId, amountPaise, 'SPLIT', sourceTransactionId, createdAt FROM bucket_allocations")
+    db.execSQL("DROP TABLE bucket_allocations")
+    db.execSQL("CREATE TABLE balance_snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, accountId INTEGER NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT, balancePaise INTEGER NOT NULL, asOfMillis INTEGER NOT NULL, deltaPaise INTEGER, createdAt INTEGER NOT NULL)")
+    db.execSQL("CREATE INDEX index_balance_snapshots_accountId_asOfMillis ON balance_snapshots(accountId, asOfMillis)")
+    db.execSQL("CREATE TABLE split_dismissed (transactionId INTEGER NOT NULL PRIMARY KEY, dismissedAt INTEGER NOT NULL)")
+} }
 
 private val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
