@@ -102,6 +102,30 @@ no `toDouble()` on money anywhere — treat any such line as a bug.
 
 (Write questions here and push if blocked. Do not guess.)
 
+## Review findings — fix round 1 (architect) — Status: OPEN
+
+Overall: strong first pass; data layer and money discipline are exactly to spec. Two fixes
+required before the gate:
+
+1. **Timeline day headers are unreliable under lazy composition.** `TimelineScreen` mutates a
+   captured `var lastDate` inside the `LazyColumn` item lambdas. Items compose lazily and
+   re-compose out of order while scrolling, so headers will disappear/duplicate with real data.
+   Fix by computing grouping ONCE in the ViewModel, not during drawing:
+   - In `TimelineViewModel`, emit `List<TimelineEntry>` where
+     `sealed interface TimelineEntry { data class DayHeader(val date: LocalDate) : TimelineEntry;
+     data class Row(val item: TimelineItem) : TimelineEntry }`, built by grouping the (already
+     newest-first) transactions by local date.
+   - In the UI, render entries with stable `key`s: `"h-$date"` for headers, `"t-${id}"` for rows.
+     No date logic, no mutable state inside the LazyColumn.
+   - Keep the "Today"/"Yesterday"/formatted-date wording where it is (UI concern).
+2. **Tab navigation stacks history.** Bottom-bar `navigate(...)` calls need the standard
+   top-level-tab pattern: `popUpTo` the graph's start destination with `saveState = true`, plus
+   `launchSingleTop = true` and `restoreState = true` — so Back from a top-level tab exits the
+   app instead of cycling old tab switches.
+
+Then: `./gradlew test` green, reinstall on the phone, append a "Fix round 1" note to Result,
+commit, push. Architect-owned files remain untouched.
+
 ## Result
 
 Implemented the Phase 1 database and manual-entry foundation:
