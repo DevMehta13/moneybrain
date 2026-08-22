@@ -440,6 +440,7 @@ From ARCHITECTURE.md, restated because every phase must obey them:
 | 9 | ChatGPT integration | M | ⏸ parked | — |
 | 10 | Export | S | ⏸ on hold | — |
 | 11 | Account balances + envelope buckets | M | ✅ done | 2026-08-23 |
+| 12 | Modernist UI re-skin | M | in progress | — |
 
 ## Change log
 
@@ -452,3 +453,4 @@ Plan changes are recorded here, never made silently.
 | 2026-08-23 | Phases 8–9 (cloud mirror + ChatGPT) parked indefinitely by owner decision; phase 10 also on hold. After phase 7 the owner decides what happens next. Phase 7 runs in two stages (A: notification harvest, B: templates + merge), mirroring phase 2's approach. | Owner doesn't want the ChatGPT configuration now; until any backup path exists, note that all data lives on the phone only. |
 | 2026-08-23 | Phase 7 (notification listener) declined by owner. `workorders/phase7a.md` cancelled; its planned v6 migration was never built, so the v6 slot is reused by phase 11. | Owner decision — SMS capture alone is doing the job. |
 | 2026-08-23 | Phase 11 added: envelope buckets (carryover, owner-confirmed splits of any amount, manual add/take-out/move) + per-account balance tracking with visible corrections + the money map. Retires the month-scoped allocation model and the salary-only split. Decided with the owner: carryover yes; balances per account; splits always ask first; money map lives at the top of the Buckets tab. | Owner wants any amount splittable under manual control, and wants the app to know account balances — "knowing account's balance will change lot of things". |
+| 2026-08-23 | Phase 12 added: Modernist UI re-skin per `design_handoff_moneybrain_ui/`. Role swap for this phase only: Claude writes the UI code directly; Codex builds, installs, and reports (no code authoring). Function unchanged — ViewModels, DAOs, and navigation untouched. | Owner wants the highest-quality visual result and asked Claude to implement the frontend personally. |

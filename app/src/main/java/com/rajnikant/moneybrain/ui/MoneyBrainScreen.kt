@@ -8,8 +8,15 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,11 +32,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -47,14 +51,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.room.withTransaction
@@ -159,15 +167,14 @@ fun MoneyBrainScreen() {
     val isTopLevel = route == overviewRoute || route == timelineRoute || route == bucketsRoute || route == recurringRoute || route == settingsRoute
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (isTopLevel) {
-                BottomBar(navController, route)
-            }
-        },
-        floatingActionButton = {
-            if (route == timelineRoute) {
-                FloatingActionButton(onClick = { navController.navigate(addRoute) }) {
-                    Text("+")
+                Column {
+                    if (route == timelineRoute) {
+                        ActionBar("Add transaction", "+") { navController.navigate(addRoute) }
+                    }
+                    BottomBar(navController, route)
                 }
             }
         },
@@ -242,30 +249,41 @@ fun MoneyBrainScreen() {
 
 @Composable
 private fun BottomBar(navController: NavHostController, route: String) {
-    NavigationBar {
-        NavigationBarItem(
-            selected = route == overviewRoute,
-            onClick = { navController.navigateTopLevel(overviewRoute) },
-            icon = { Text("⌂") },
-            label = { Text("Overview") },
-        )
-        NavigationBarItem(
-            selected = route == timelineRoute,
-            onClick = { navController.navigateTopLevel(timelineRoute) },
-            icon = { Text("≡") },
-            label = { Text("Timeline") },
-        )
-        NavigationBarItem(
-            selected = route == bucketsRoute,
-            onClick = { navController.navigateTopLevel(bucketsRoute) }, icon = { Text("▣") }, label = { Text("Buckets") },
-        )
-        NavigationBarItem(selected = route == recurringRoute, onClick = { navController.navigateTopLevel(recurringRoute) }, icon = { Text("↻") }, label = { Text("Recurring") })
-        NavigationBarItem(
-            selected = route == settingsRoute,
-            onClick = { navController.navigateTopLevel(settingsRoute) },
-            icon = { Text("⚙") },
-            label = { Text("Settings") },
-        )
+    val m = mb()
+    val tabs = listOf(
+        overviewRoute to "OVERVIEW",
+        timelineRoute to "TIMELINE",
+        bucketsRoute to "BUCKETS",
+        recurringRoute to "RECURRING",
+        settingsRoute to "SETTINGS",
+    )
+    Column(Modifier.background(MaterialTheme.colorScheme.background)) {
+        Box(Modifier.fillMaxWidth()) {
+            SectionRule()
+            Row(Modifier.fillMaxWidth()) {
+                tabs.forEach { (tabRoute, _) ->
+                    Box(Modifier.weight(1f).height(3.dp).background(if (route == tabRoute) m.accent else Color.Transparent))
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().navigationBarsPadding()) {
+            tabs.forEach { (tabRoute, label) ->
+                val active = route == tabRoute
+                Box(
+                    Modifier.weight(1f).clickable { navController.navigateTopLevel(tabRoute) }.padding(top = 10.dp, bottom = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = if (active) FontWeight.ExtraBold else FontWeight.SemiBold,
+                            letterSpacing = 0.06.em,
+                        ),
+                        color = if (active) m.ink else m.faint,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -289,17 +307,105 @@ private fun OverviewScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDat
     val people = peopleSummary(peopleBalances)
     val uncategorised = transactions.count { it.categoryId == null }
     val detected = detectedRecurring(recurring, transactions, dismissed, ZoneId.systemDefault())
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (unresolved.isNotEmpty() || uncategorised > 0 || detected.isNotEmpty()) item { Card { Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) { if (unresolved.isNotEmpty()) TextButton(onClick = onActivity) { Text("${unresolved.size} unrecognised SMS") }; if (uncategorised > 0) TextButton(onClick = { onTimeline(true) }) { Text("$uncategorised uncategorised") }; if (detected.isNotEmpty()) TextButton(onClick = onRecurring) { Text("${detected.size} detected recurring") } } } }
-        item { Text("Overview", style = MaterialTheme.typography.headlineSmall) }
-        moneyMap.totalPaise?.let { total -> item { TextButton(onClick = onBuckets) { Text("Total balance ${Money.formatPaise(total)}") } } }
-        item { Card(Modifier.fillMaxWidth().clickable(onClick = onBuckets)) { Column(Modifier.padding(12.dp)) { Text("Buckets", fontWeight = FontWeight.Medium); statuses.forEach { status -> Text("${status.bucket.name} · Available ${Money.formatPaise(status.availablePaise)}", color = if (status.availablePaise < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) } } } }
-        item { Card(Modifier.fillMaxWidth().clickable(onClick = onRecurring)) { Column(Modifier.padding(12.dp)) { Text("Upcoming bills", fontWeight = FontWeight.Medium); Text("This month ${Money.formatPaise(recurring.filter { it.status == RecurringStatus.ACTIVE && it.nextDue.startsWith(java.time.YearMonth.now().toString()) }.sumOf { it.expectedAmountPaise })}"); upcoming.take(3).forEach { Text("${it.name} · ${Money.formatPaise(it.expectedAmountPaise)} · ${it.nextDueIso}") } } } }
-        trip?.let { active -> item { Card(Modifier.fillMaxWidth().clickable { onTrip(active.trip.id) }) { Column(Modifier.padding(12.dp)) { Text("Active trip", fontWeight = FontWeight.Medium); Text("${active.trip.name} · ${Money.formatPaise(active.total)}") } } } }
-        item { Card(Modifier.fillMaxWidth().clickable(onClick = onPeople)) { Column(Modifier.padding(12.dp)) { Text("People", fontWeight = FontWeight.Medium); Text("Owed to you ${Money.formatPaise(people.owedToYou)} · You owe ${Money.formatPaise(people.youOwe)}") } } }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Recent transactions", style = MaterialTheme.typography.titleMedium); TextButton(onClick = { onTimeline(false) }) { Text("See all") } } }
-        items(transactions.take(5), key = { it.id }) { transaction -> val category = categories.firstOrNull { it.id == transaction.categoryId }; TransactionRow(TimelineItem(transaction, null, category), onClick = { onTransaction(transaction.id) }) }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Recent activity", style = MaterialTheme.typography.titleMedium); TextButton(onClick = onActivity) { Text("See all") } } }
+    val m = mb()
+    val monthText = java.time.YearMonth.now().format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)).uppercase(Locale.ENGLISH)
+    val safeToSpend = statuses.sumOf { it.availablePaise }
+    val inBuckets = statuses.sumOf { it.balancePaise }
+    val reservedTotal = statuses.sumOf { it.reservedPaise }
+    val daysLeft = java.time.YearMonth.now().lengthOfMonth() - LocalDate.now().dayOfMonth
+    val billsThisMonth = recurring.filter { it.status == RecurringStatus.ACTIVE && it.nextDue.startsWith(java.time.YearMonth.now().toString()) }.sumOf { it.expectedAmountPaise }
+    LazyColumn(Modifier.fillMaxSize()) {
+        item {
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                Text("MONEY BRAIN", style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.1.em))
+                Text(monthText, color = m.muted, fontSize = 11.sp, letterSpacing = 0.08.em)
+            }
+            SectionRule()
+        }
+        if (unresolved.isNotEmpty() || uncategorised > 0 || detected.isNotEmpty()) item {
+            androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().background(m.accentTint).padding(horizontal = 20.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (unresolved.isNotEmpty()) AttentionLink("${unresolved.size} unrecognised SMS", onActivity)
+                if (uncategorised > 0) AttentionLink("$uncategorised uncategorised") { onTimeline(true) }
+                if (detected.isNotEmpty()) AttentionLink("${detected.size} recurring detected", onRecurring)
+            }
+            SectionRule()
+        }
+        item {
+            Column(Modifier.fillMaxWidth().clickable(onClick = onBuckets).padding(start = 20.dp, top = 22.dp, end = 20.dp, bottom = 18.dp)) {
+                Kicker("Safe to spend")
+                Text(Money.formatPaise(safeToSpend), Modifier.padding(top = 4.dp), style = MaterialTheme.typography.displaySmall, color = if (safeToSpend < 0) m.accentDeep else m.ink)
+                Text("of ${Money.formatPaise(inBuckets)} in buckets · ${Money.formatPaise(reservedTotal)} reserved for bills · $daysLeft days left", Modifier.padding(top = 6.dp), color = m.muted, fontSize = 12.sp)
+                moneyMap.totalPaise?.let { total ->
+                    Text("Total balance ${Money.formatPaise(total)} · unallocated ${if (moneyMap.untrackedAccountIds.isEmpty() && moneyMap.unallocatedPaise != null) Money.formatPaise(moneyMap.unallocatedPaise!!) else "—"}", Modifier.padding(top = 2.dp), color = m.muted, fontSize = 12.sp)
+                }
+            }
+            SectionRule()
+        }
+        item {
+            Column(Modifier.fillMaxWidth().padding(start = 20.dp, top = 16.dp, end = 20.dp)) {
+                SectionHeader("Buckets") { RedLink("Edit plan", onClick = onBuckets) }
+                Column(Modifier.padding(top = 10.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    statuses.forEach { status ->
+                        val over = status.availablePaise < 0
+                        Column(Modifier.clickable(onClick = onBuckets)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(status.bucket.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                if (over) Text("−${Money.formatPaise(-status.availablePaise)} over", color = m.accentDeep, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                else Text("${Money.formatPaise(status.availablePaise)} left", fontSize = 14.sp)
+                            }
+                            BucketBar(
+                                fraction = if (status.balancePaise > 0) status.availablePaise.toFloat() / status.balancePaise else 0f,
+                                over = over,
+                                modifier = Modifier.padding(top = 5.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            SectionRule()
+        }
+        item {
+            Column(Modifier.fillMaxWidth().clickable(onClick = onRecurring).padding(horizontal = 20.dp, vertical = 14.dp)) {
+                SectionHeader("Upcoming bills") { Text("${Money.formatPaise(billsThisMonth)} this month", color = m.muted, fontSize = 12.sp) }
+                Column(Modifier.padding(top = 8.dp)) {
+                    upcoming.take(3).forEachIndexed { index, bill ->
+                        if (index > 0) RowRule()
+                        Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(bill.name, Modifier.weight(1f), fontSize = 13.5.sp)
+                            Text(runCatching { LocalDate.parse(bill.nextDueIso).format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)) }.getOrDefault(bill.nextDueIso), color = m.muted, fontSize = 13.5.sp)
+                            Spacer(Modifier.width(16.dp))
+                            Text(Money.formatPaise(bill.expectedAmountPaise), fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+                        }
+                    }
+                    if (upcoming.isEmpty()) Text("Nothing due in the next 30 days.", color = m.muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 7.dp))
+                }
+            }
+            SectionRule()
+        }
+        item {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                StatCell("Owed to you", Money.formatPaise(people.owedToYou), Modifier.clickable(onClick = onPeople))
+                StatCell("You owe", Money.formatPaise(people.youOwe), Modifier.clickable(onClick = onPeople))
+                StatCell("Active trip", trip?.let { Money.formatPaise(it.total) } ?: "—", Modifier.clickable { trip?.let { onTrip(it.trip.id) } })
+            }
+            SectionRule()
+        }
+        item {
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                Text("RECENT", style = MaterialTheme.typography.titleMedium)
+                RedLink("See all") { onTimeline(false) }
+            }
+        }
+        items(transactions.take(3), key = { it.id }) { transaction ->
+            val category = categories.firstOrNull { it.id == transaction.categoryId }
+            TransactionRow(TimelineItem(transaction, null, category), onClick = { onTransaction(transaction.id) })
+        }
+        item {
+            SectionRule(Modifier.padding(top = 8.dp))
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                MbListRow("Activity log", "Every automatic action, with undo", onClick = onActivity)
+            }
+        }
     }
 }
 
@@ -333,56 +439,146 @@ private fun BucketsScreen(viewModel: BucketsViewModel, onAccounts: () -> Unit) {
             snackbarHostState.showSnackbar((message as BucketMessage.Text).value)
         }
     }
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(innerPadding), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text("Buckets", style = MaterialTheme.typography.headlineSmall) }
-            item { MoneyMapCard(moneyMap, accounts, statuses, onAccounts) }
-            if (splitCandidates.isNotEmpty()) item { Text("Split this?", style = MaterialTheme.typography.titleMedium) }
-            items(splitCandidates, key = { "split-${it.id}" }) { transaction ->
-                Card { Column(Modifier.padding(12.dp)) {
-                    Text("${transaction.merchant ?: "Credit"} · ${Money.formatPaise(transaction.amountPaise)}")
-                    Row { TextButton(onClick = { splitSource = transaction }) { Text("Split…") }; TextButton(onClick = { viewModel.dismissSplit(transaction.id) }) { Text("Skip") } }
-                } }
-            }
-            item { Button(onClick = { showAmountSplit = true }, modifier = Modifier.fillMaxWidth()) { Text("Split an amount") } }
-            item { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("New bucket") }); Button(onClick = { viewModel.addBucket(name); name = "" }, enabled = name.isNotBlank()) { Text("Add bucket") } }
-            item { Text("Split template: ${BucketMath.totalPercentBp(planEntries) / 100}% · Fixed ${Money.formatPaise(BucketMath.totalFixedPaise(planEntries))}") }
-            if (BucketMath.totalPercentBp(planEntries) > 10_000) {
-                item { Text("Plan percentages exceed 100%; entries will be capped in order.", color = MaterialTheme.colorScheme.error) }
-            }
-            items(statuses, key = { it.bucket.id }) { status ->
-                val available = status.availablePaise
-                val bucketPlans = plans.filter { it.bucketId == status.bucket.id }
-                Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(status.bucket.name, fontWeight = FontWeight.Medium)
-                        TextButton(onClick = { viewModel.deleteBucket(status.bucket.id) }) { Text("Remove") }
-                    }
-                    Text("Balance ${Money.formatPaise(status.balancePaise)} · Available ${Money.formatPaise(available)}${if (status.reservedPaise > 0) " · Reserved ${Money.formatPaise(status.reservedPaise)}" else ""}", color = if (available < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-                    Row { TextButton(onClick = { adjustmentBucket = status }) { Text("Add / Take out") }; TextButton(onClick = { moveFrom = status }) { Text("Move") }; TextButton(onClick = { historyBucket = status }) { Text("History") } }
-                    bucketPlans.forEach { entry ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(if (entry.kind == "PERCENT") "${entry.value / 100}%" else Money.formatPaise(entry.value))
-                            TextButton(onClick = { viewModel.deletePlan(entry.id) }) { Text("Remove") }
-                        }
-                    }
-                    PlanEntryAdder(onPercent = { viewModel.addPercent(status.bucket.id, it) }, onFixed = { viewModel.addFixed(status.bucket.id, it) })
-                } }
+    val m = mb()
+    val monthText = java.time.YearMonth.now().format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)).uppercase(Locale.ENGLISH)
+    Scaffold(containerColor = MaterialTheme.colorScheme.background, snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                    Text("Buckets", style = MaterialTheme.typography.headlineSmall)
+                    Text(monthText, color = m.muted, fontSize = 11.sp, letterSpacing = 0.08.em)
+                }
+                SectionRule()
             }
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Split template order", style = MaterialTheme.typography.titleMedium)
-                    Text("When the template asks for more than an amount has, entries higher in this list are filled first.")
-                    plans.forEachIndexed { index, entry ->
-                        val bucketName = statuses.firstOrNull { it.bucket.id == entry.bucketId }?.bucket?.name ?: "Deleted bucket"
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("${index + 1}. $bucketName — ${if (entry.kind == "PERCENT") "${entry.value / 100}%" else Money.formatPaise(entry.value)}")
-                            Row {
-                                TextButton(onClick = { viewModel.movePlan(plans, entry.id, -1) }, enabled = index > 0) { Text("Up") }
-                                TextButton(onClick = { viewModel.movePlan(plans, entry.id, 1) }, enabled = index < plans.lastIndex) { Text("Down") }
+                MoneyMapCard(moneyMap, accounts, statuses, onAccounts)
+                SectionRule()
+            }
+            items(splitCandidates, key = { "split-${it.id}" }) { transaction ->
+                val when_ = Instant.ofEpochMilli(transaction.occurredAt).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH))
+                val preview = BucketMath.split(transaction.amountPaise, planEntries)
+                Column(Modifier.padding(start = 20.dp, top = 16.dp, end = 20.dp).fillMaxWidth().border(2.dp, m.accent).background(m.accentTintSoft)) {
+                    Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 12.dp)) {
+                        Kicker("Split this? · $when_", color = m.accentDeep)
+                        Text(Money.formatPaise(transaction.amountPaise), Modifier.padding(top = 2.dp), style = MaterialTheme.typography.headlineMedium)
+                        transaction.merchant?.let { Text(it, color = m.muted, style = MaterialTheme.typography.bodySmall) }
+                        Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            preview.lines.forEach { line ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(statuses.firstOrNull { it.bucket.id == line.bucketId }?.bucket?.name ?: "Deleted bucket", fontSize = 13.sp)
+                                    Text(Money.formatPaise(line.amountPaise), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                }
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Unallocated", color = m.muted, fontSize = 13.sp)
+                                Text(Money.formatPaise(preview.unallocatedPaise), color = m.muted, fontSize = 13.sp)
                             }
                         }
                     }
+                    Box(Modifier.fillMaxWidth().height(2.dp).background(m.accent))
+                    Row(Modifier.fillMaxWidth()) {
+                        Box(Modifier.weight(1f).background(m.accent).clickable { splitSource = transaction }.padding(horizontal = 16.dp, vertical = 11.dp)) {
+                            Text("SPLIT NOW", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                        }
+                        Box(Modifier.weight(1f).clickable { viewModel.dismissSplit(transaction.id) }.padding(horizontal = 16.dp, vertical = 11.dp)) {
+                            Text("NOT THIS TIME", color = m.accentDeep, style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+            }
+            item {
+                Row(
+                    Modifier.padding(start = 20.dp, top = 16.dp, end = 20.dp).fillMaxWidth().border(2.dp, m.rule).clickable { showAmountSplit = true }.padding(horizontal = 16.dp, vertical = 11.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("SPLIT AN AMOUNT", style = MaterialTheme.typography.labelLarge)
+                    Text("→", fontSize = 14.sp)
+                }
+            }
+            item { SectionHeader("Envelopes", Modifier.padding(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 6.dp)) }
+            items(statuses, key = { it.bucket.id }) { status ->
+                val available = status.availablePaise
+                val over = available < 0
+                val bucketPlans = plans.filter { it.bucketId == status.bucket.id }
+                val planNote = bucketPlans.joinToString(" + ") { if (it.kind == "PERCENT") "${it.value / 100}%" else Money.formatPaise(it.value) }
+                Column(
+                    Modifier.padding(start = 20.dp, end = 20.dp, bottom = 14.dp).fillMaxWidth()
+                        .background(m.surface)
+                        .border(if (over) 2.dp else 1.dp, if (over) m.accent else m.cardBorder)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                        Text(status.bucket.name, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                        if (over) Kicker("Overspent", color = m.accentDeep)
+                        else Text(if (planNote.isBlank()) "ENVELOPE" else planNote.uppercase(Locale.ENGLISH), color = m.faint, fontSize = 11.sp, letterSpacing = 0.04.em)
+                    }
+                    BucketBar(
+                        fraction = if (status.balancePaise > 0) available.toFloat() / status.balancePaise else 0f,
+                        over = over,
+                        modifier = Modifier.padding(top = 10.dp, bottom = 8.dp),
+                    )
+                    Row(Modifier.fillMaxWidth()) {
+                        listOf(
+                            "BALANCE" to Money.formatPaise(status.balancePaise),
+                            "RESERVED" to Money.formatPaise(status.reservedPaise),
+                            "AVAILABLE" to Money.formatPaise(available),
+                        ).forEachIndexed { index, (label, value) ->
+                            Column(Modifier.weight(1f)) {
+                                Text(label, color = m.faint, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.07.em))
+                                Text(
+                                    value,
+                                    fontWeight = if (index == 2) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = if (index == 2 && over) m.accentDeep else m.ink,
+                                )
+                            }
+                        }
+                    }
+                    Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        RedLink("Add / Take out") { adjustmentBucket = status }
+                        RedLink("Move") { moveFrom = status }
+                        RedLink("History") { historyBucket = status }
+                        RedLink("Remove") { viewModel.deleteBucket(status.bucket.id) }
+                    }
+                    Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        bucketPlans.forEach { entry ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(if (entry.kind == "PERCENT") "${entry.value / 100}% of any split" else "${Money.formatPaise(entry.value)} fixed", fontSize = 13.sp)
+                                RedLink("Remove") { viewModel.deletePlan(entry.id) }
+                            }
+                        }
+                        PlanEntryAdder(onPercent = { viewModel.addPercent(status.bucket.id, it) }, onFixed = { viewModel.addFixed(status.bucket.id, it) })
+                    }
+                }
+            }
+            item {
+                SectionRule()
+                Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionHeader("Split template")
+                    Text("Prefills every split: ${BucketMath.totalPercentBp(planEntries) / 100}% + ${Money.formatPaise(BucketMath.totalFixedPaise(planEntries))} fixed. You confirm every split before it happens.", color = m.muted, style = MaterialTheme.typography.bodySmall)
+                    if (BucketMath.totalPercentBp(planEntries) > 10_000) {
+                        Text("Template percentages exceed 100%; entries will be capped in order.", color = m.accentDeep, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text("When the template asks for more than an amount has, entries higher in this list are filled first.", color = m.muted, style = MaterialTheme.typography.bodySmall)
+                    plans.forEachIndexed { index, entry ->
+                        val bucketName = statuses.firstOrNull { it.bucket.id == entry.bucketId }?.bucket?.name ?: "Deleted bucket"
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("${index + 1}. $bucketName — ${if (entry.kind == "PERCENT") "${entry.value / 100}%" else Money.formatPaise(entry.value)}", fontSize = 13.5.sp)
+                            Row {
+                                TextButton(onClick = { viewModel.movePlan(plans, entry.id, -1) }, enabled = index > 0) { Text("UP") }
+                                TextButton(onClick = { viewModel.movePlan(plans, entry.id, 1) }, enabled = index < plans.lastIndex) { Text("DOWN") }
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                SectionRule()
+                Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SectionHeader("New bucket")
+                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                    Button(onClick = { viewModel.addBucket(name); name = "" }, enabled = name.isNotBlank()) { Text("ADD BUCKET") }
                 }
             }
         }
@@ -397,15 +593,50 @@ private fun BucketsScreen(viewModel: BucketsViewModel, onAccounts: () -> Unit) {
 
 @Composable
 private fun MoneyMapCard(map: com.rajnikant.moneybrain.summary.MoneyMap, accounts: List<AccountEntity>, statuses: List<com.rajnikant.moneybrain.summary.BucketStatus>, onAccounts: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text("Money map", style = MaterialTheme.typography.titleMedium)
-        TextButton(onClick = onAccounts) { Text(map.totalPaise?.let { "Total balance ${Money.formatPaise(it)}" } ?: "Set your balances", fontWeight = FontWeight.Medium) }
-        accounts.forEach { account -> TextButton(onClick = onAccounts) { Text("${account.name} · ${map.accountBalances[account.id]?.let(Money::formatPaise) ?: "Set balance"}") } }
-        Text("Distribution", fontWeight = FontWeight.Medium)
-        statuses.forEach { status -> Text("${status.bucket.name} ${Money.formatPaise(status.balancePaise)}${if (status.reservedPaise > 0) " · of which ${Money.formatPaise(status.reservedPaise)} reserved" else ""}", color = if (status.balancePaise < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) }
-        if (map.unallocatedPaise == null || map.untrackedAccountIds.isNotEmpty()) Text("Unallocated — · Set every account balance to see this.")
-        else Text("Unallocated ${Money.formatPaise(map.unallocatedPaise)}", color = if (map.unallocatedPaise < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-    } }
+    val m = mb()
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)) {
+        Kicker("Money map")
+        val total = map.totalPaise
+        if (total != null) {
+            Text(Money.formatPaise(total), Modifier.clickable(onClick = onAccounts).padding(top = 2.dp), style = MaterialTheme.typography.headlineMedium)
+        } else {
+            Text("SET YOUR BALANCES →", Modifier.clickable(onClick = onAccounts).padding(top = 6.dp), color = m.accentDeep, style = MaterialTheme.typography.labelLarge)
+        }
+        Column(Modifier.padding(top = 8.dp)) {
+            accounts.forEachIndexed { index, account ->
+                if (index > 0) RowRule()
+                Row(Modifier.fillMaxWidth().clickable(onClick = onAccounts).padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(account.name, Modifier.weight(1f), fontSize = 13.5.sp)
+                    val balance = map.accountBalances[account.id]
+                    if (balance != null) Text(Money.formatPaise(balance), fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+                    else Text("SET BALANCE", color = m.accentDeep, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        Kicker("Distribution", Modifier.padding(top = 12.dp))
+        Column(Modifier.padding(top = 4.dp)) {
+            statuses.forEachIndexed { index, status ->
+                if (index > 0) RowRule()
+                Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(status.bucket.name, Modifier.weight(1f), fontSize = 13.5.sp)
+                    if (status.reservedPaise > 0) {
+                        Text("of which ${Money.formatPaise(status.reservedPaise)} reserved", color = m.muted, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    Text(Money.formatPaise(status.balancePaise), fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, color = if (status.balancePaise < 0) m.accentDeep else m.ink)
+                }
+            }
+            RowRule()
+            Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Unallocated", Modifier.weight(1f), fontSize = 13.5.sp, color = m.muted)
+                if (map.unallocatedPaise == null || map.untrackedAccountIds.isNotEmpty()) {
+                    Text("— set every balance to see this", color = m.muted, style = MaterialTheme.typography.bodySmall)
+                } else {
+                    Text(Money.formatPaise(map.unallocatedPaise!!), fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, color = if (map.unallocatedPaise!! < 0) m.accentDeep else m.ink)
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -522,25 +753,51 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onTransaction: (Long) -
         return
     }
 
+    val m = mb()
+    val dayTotals = remember(entries) {
+        entries.filterIsInstance<TimelineEntry.Row>()
+            .groupBy { Instant.ofEpochMilli(it.item.transaction.occurredAt).atZone(ZoneId.systemDefault()).toLocalDate() }
+            .mapValues { (_, rows) ->
+                rows.sumOf { row -> if (row.item.transaction.direction == "IN") row.item.transaction.amountPaise else -row.item.transaction.amountPaise }
+            }
+    }
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item { OutlinedTextField(filters.search, { value -> viewModel.updateFilters { it.copy(search = value) } }, label = { Text("Search transactions") }, modifier = Modifier.fillMaxWidth().padding(16.dp)) }
-        item { androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { FilterChip(filters.uncategorised, { viewModel.updateFilters { it.copy(uncategorised = !it.uncategorised) } }, label = { Text("Uncategorised") }); listOf("OUT", "IN").forEach { direction -> FilterChip(filters.direction == direction, { viewModel.updateFilters { it.copy(direction = if (it.direction == direction) null else direction) } }, label = { Text(direction) }) } } }
+        item {
+            Column(Modifier.fillMaxWidth().padding(start = 20.dp, top = 14.dp, end = 20.dp)) {
+                Text("Timeline", style = MaterialTheme.typography.headlineSmall)
+                OutlinedTextField(filters.search, { value -> viewModel.updateFilters { it.copy(search = value) } }, placeholder = { Text("Search merchant, note, person…", color = m.faint, fontSize = 13.sp) }, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), singleLine = true)
+            }
+        }
+        item { androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(filters.uncategorised, { viewModel.updateFilters { it.copy(uncategorised = !it.uncategorised) } }, label = { Text("UNCATEGORISED") }); listOf("OUT", "IN").forEach { direction -> FilterChip(filters.direction == direction, { viewModel.updateFilters { it.copy(direction = if (it.direction == direction) null else direction) } }, label = { Text(direction) }) } } }
         item { FilterRow("Account", accounts.map { it.id to it.name }, filters.accountId) { id -> viewModel.updateFilters { it.copy(accountId = id) } }; FilterRow("Category", categories.map { it.id to it.name }, filters.categoryId) { id -> viewModel.updateFilters { it.copy(categoryId = id) } }; FilterRow("Bucket", buckets.map { it.id to it.name }, filters.bucketId) { id -> viewModel.updateFilters { it.copy(bucketId = id) } }; FilterRow("Trip", trips.map { it.id to it.name }, filters.tripId) { id -> viewModel.updateFilters { it.copy(tripId = id) } }; FilterRow("Person", people.map { it.id to it.name }, filters.personId) { id -> viewModel.updateFilters { it.copy(personId = id) } } }
-        items(
+        item { SectionRule(Modifier.padding(top = 12.dp)) }
+        itemsIndexed(
             items = entries,
-            key = { entry ->
+            key = { _, entry ->
                 when (entry) {
                     is TimelineEntry.DayHeader -> "h-${entry.date}"
                     is TimelineEntry.Row -> "t-${entry.item.transaction.id}"
                 }
             },
-        ) { entry ->
+        ) { index, entry ->
             when (entry) {
-                is TimelineEntry.DayHeader -> Text(
-                    text = entry.date.timelineHeader(),
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                )
+                is TimelineEntry.DayHeader -> {
+                    if (index > 0) SectionRule()
+                    val dayText = entry.date.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)).uppercase(Locale.ENGLISH)
+                    val label = when (entry.date) {
+                        LocalDate.now() -> "TODAY · $dayText"
+                        LocalDate.now().minusDays(1) -> "YESTERDAY · $dayText"
+                        else -> entry.date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)).uppercase(Locale.ENGLISH)
+                    }
+                    val total = dayTotals[entry.date] ?: 0L
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(label, color = m.muted, style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.08.em))
+                        Text(if (total >= 0) "+${Money.formatPaise(total)}" else "−${Money.formatPaise(-total)}", color = m.muted, style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.02.em))
+                    }
+                }
                 is TimelineEntry.Row -> {
                     val item = entry.item
                     TransactionRow(item, onClick = { onTransaction(item.transaction.id) })
@@ -557,30 +814,34 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onTransaction: (Long) -
 
 @Composable
 private fun TransactionRow(item: TimelineItem, onClick: () -> Unit) {
+    val m = mb()
     val transaction = item.transaction
-    val detail = listOfNotNull(transaction.merchant, transaction.notes).joinToString(" · ")
-    val amount = Money.formatPaise(transaction.amountPaise)
     val isIncome = transaction.direction == "IN"
+    val time = Instant.ofEpochMilli(transaction.occurredAt).atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)).lowercase(Locale.ENGLISH)
+    val meta = listOfNotNull(time, item.account?.name, if (transaction.source == "SMS") "SMS" else "manual").joinToString(" · ")
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 11.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.category?.name ?: "Uncategorised", fontWeight = FontWeight.Medium)
-            if (transaction.source == "SMS") Text("auto", style = MaterialTheme.typography.labelSmall)
-            if (detail.isNotBlank()) Text(detail, style = MaterialTheme.typography.bodySmall)
-            Text(item.account?.name ?: "Unknown account", style = MaterialTheme.typography.bodySmall)
+            Text(transaction.merchant ?: item.category?.name ?: "Transaction", style = MaterialTheme.typography.titleSmall)
+            Text(meta, Modifier.padding(top = 1.dp), color = m.faint, style = MaterialTheme.typography.bodySmall)
+            Row(Modifier.padding(top = 5.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (item.category != null) MbTag(item.category.name, m.surface, m.ink)
+                else MbTag("Pick category", Color.Transparent, m.muted, dashed = true)
+                if (transaction.source == "SMS") MbTag("Auto", m.accentTint, m.accentDeep)
+            }
         }
         Text(
-            text = if (isIncome) "+$amount" else amount,
-            color = if (isIncome) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
+            text = if (isIncome) "+${Money.formatPaise(transaction.amountPaise)}" else "−${Money.formatPaise(transaction.amountPaise)}",
+            color = if (isIncome) m.accentDeep else m.ink,
+            fontWeight = if (isIncome) FontWeight.ExtraBold else FontWeight.SemiBold,
+            fontSize = 15.sp,
         )
     }
-    HorizontalDivider()
+    RowRule(Modifier.padding(horizontal = 20.dp))
 }
 
 @Composable
@@ -912,29 +1173,38 @@ private fun CategoryPicker(
 
 @Composable
 private fun SettingsScreen(onAccounts: () -> Unit, onCapture: () -> Unit, onCategoryBuckets: () -> Unit, onPeople: () -> Unit, onTrips: () -> Unit, onActivity: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Settings", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(16.dp))
-        Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onAccounts)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Accounts", style = MaterialTheme.typography.titleMedium)
-                Text("View or add bank, card, and cash accounts")
-            }
+    val m = mb()
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Text("Settings", Modifier.padding(start = 20.dp, top = 14.dp, bottom = 12.dp), style = MaterialTheme.typography.headlineSmall)
+        SectionRule()
+        Column(Modifier.padding(start = 20.dp, top = 16.dp, end = 20.dp).fillMaxWidth().background(m.ink).padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Kicker("Private by design", color = m.accentInverse)
+            Text(
+                "Everything stays on this phone. No cloud, no account, no analytics. Undo for every automatic action.",
+                Modifier.padding(top = 4.dp),
+                color = m.paper,
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+            )
         }
-        Spacer(Modifier.height(12.dp))
-        Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onCapture)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("SMS capture (setup)", style = MaterialTheme.typography.titleMedium)
-                Text("Review masked bank SMS samples")
-            }
+        Kicker("Capture", Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp))
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            SectionRule()
+            MbListRow("SMS capture", "Masked bank SMS samples, on this phone only", onClick = onCapture)
+            RowRule()
+            MbListRow("Activity log", "Every automatic action, with undo", onClick = onActivity)
         }
-        Spacer(Modifier.height(12.dp))
-        Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onCategoryBuckets)) {
-            Column(modifier = Modifier.padding(16.dp)) { Text("Categories & buckets", style = MaterialTheme.typography.titleMedium); Text("Choose which bucket each category drains") }
+        Kicker("Money", Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp))
+        Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp)) {
+            SectionRule()
+            MbListRow("Accounts", "Balances, bank and cash accounts", onClick = onAccounts)
+            RowRule()
+            MbListRow("Categories & buckets", "Which bucket each category drains", onClick = onCategoryBuckets)
+            RowRule()
+            MbListRow("People", "Balances, lending ledger", onClick = onPeople)
+            RowRule()
+            MbListRow("Trips", "Auto-file spending into a trip window", onClick = onTrips)
         }
-        Spacer(Modifier.height(12.dp)); Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onPeople)) { Column(Modifier.padding(16.dp)) { Text("People", style = MaterialTheme.typography.titleMedium); Text("Balances, lending, and settlements") } }
-        Spacer(Modifier.height(12.dp)); Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onTrips)) { Column(Modifier.padding(16.dp)) { Text("Trips", style = MaterialTheme.typography.titleMedium); Text("Start and stop spending trips") } }
-        Spacer(Modifier.height(12.dp)); Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onActivity)) { Column(Modifier.padding(16.dp)) { Text("Activity", style = MaterialTheme.typography.titleMedium); Text("Review automatic actions and undo them") } }
     }
 }
 
@@ -1182,10 +1452,4 @@ private fun AccountTypePicker(type: String, onType: (String) -> Unit) {
             ) { Text(option) }
         }
     }
-}
-
-private fun LocalDate.timelineHeader(): String = when (this) {
-    LocalDate.now() -> "Today"
-    LocalDate.now().minusDays(1) -> "Yesterday"
-    else -> format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH))
 }

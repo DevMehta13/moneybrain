@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="ds.css">
+<style>body{margin:0;background:#e6e4e2;font-family:"Archivo",system-ui,sans-serif}a{color:#ec3013;text-underline-offset:3px}a:hover{color:#ae1800}.dv-turn{padding:40px 44px 32px;border-bottom:2px solid rgba(32,30,29,.25);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#201e1d;color:#fff;text-decoration:none}.dv-tname{font:800 15px/1.2 "Archivo",sans-serif;color:#201e1d}.dv-note{max-width:820px;font:400 12.5px/1.55 "Archivo",sans-serif;color:rgba(32,30,29,.65);margin:0 0 26px}.dv-opts{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(32,30,29,.1);color:#201e1d;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11.5px/1.3 "Archivo",sans-serif;color:rgba(32,30,29,.6)}.dv-opt:target .dv-oid{background:#ec3013;color:#fff}.dv-next{margin:26px 0 0;font:12px/1.5 "Archivo",sans-serif;color:rgba(32,30,29,.55)}</style>
+</helmet>
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Money Brain — Modernist redesign of the real screens</span></div>
+<p class="dv-note">Built from your Kotlin source (MoneyBrainScreen.kt) and product.md, restyled in the Modernist system: Archivo, flat surfaces, zero radius, 2px rules, one red accent used sparingly. Assumptions: content is your actual features — buckets with reserved amounts, SMS capture with undo, salary split, recurring. "Safe to spend" is the headline number (allocated − spent − reserved). Numbers are tabular; everything flush left. <a class="dv-oid" href="#1e">1e</a> is the dark theme of <a class="dv-oid" href="#1a">1a</a>.</p>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Overview — light</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" hint-size="412px,892px">
+<div style="height:100%;display:flex;flex-direction:column;background:#f3f2f2;color:#201e1d;font-family:'Archivo',system-ui,sans-serif">
+ <div style="flex:1;overflow:auto">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;padding:14px 20px 10px;border-bottom:2px solid rgba(32,30,29,.4)">
+   <div style="font-size:13px;font-weight:800;letter-spacing:.1em">MONEY BRAIN</div>
+   <div style="font-size:11px;letter-spacing:.08em;color:rgba(32,30,29,.55)">AUGUST 2026</div>
+  </div>
+  <sc-if value="{{ showAttention }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;gap:14px;flex-wrap:wrap;padding:10px 20px;background:#ffe0d9;border-bottom:2px solid rgba(32,30,29,.4);font-size:12px;font-weight:600">
+   <span style="color:#ae1800;text-decoration:underline;text-underline-offset:3px">2 unrecognised SMS</span>
+   <span style="color:#ae1800;text-decoration:underline;text-underline-offset:3px">4 uncategorised</span>
+   <span style="color:#ae1800;text-decoration:underline;text-underline-offset:3px">1 recurring detected</span>
+  </div>
+  </sc-if>
+  <div style="padding:22px 20px 18px;border-bottom:2px solid rgba(32,30,29,.4)">
+   <div style="font-size:11px;font-weight:800;letter-spacing:.1em;color:rgba(32,30,29,.55)">SAFE TO SPEND</div>
+   <div style="font-size:46px;font-weight:800;letter-spacing:-.02em;line-height:1.05;margin-top:4px;font-variant-numeric:tabular-nums">₹18,240</div>
+   <div style="font-size:12px;color:rgba(32,30,29,.55);margin-top:6px">of ₹52,000 allocated · ₹7,350 reserved for bills · 9 days left</div>
+  </div>
+  <div style="padding:16px 20px 6px">
+   <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+    <div style="font-size:13px;font-weight:800;letter-spacing:.06em">BUCKETS</div>
+    <div style="font-size:11px;font-weight:600;color:#ae1800;letter-spacing:.06em">EDIT PLAN</div>
+   </div>
+   <div style="display:flex;flex-direction:column;gap:12px;padding-bottom:14px">
+    <div>
+     <div style="display:flex;justify-content:space-between;font-size:14px;font-variant-numeric:tabular-nums"><span style="font-weight:600">Essentials</span><span>₹9,180 left</span></div>
+     <div style="height:6px;background:#d7d3d3;margin-top:5px"><div style="height:6px;width:62%;background:#201e1d"></div></div>
+    </div>
+    <div>
+     <div style="display:flex;justify-content:space-between;font-size:14px;font-variant-numeric:tabular-nums"><span style="font-weight:600">Fun</span><span>₹2,060 left</span></div>
+     <div style="height:6px;background:#d7d3d3;margin-top:5px"><div style="height:6px;width:74%;background:#201e1d"></div></div>
+    </div>
+    <div>
+     <div style="display:flex;justify-content:space-between;font-size:14px;font-variant-numeric:tabular-nums"><span style="font-weight:600">Bike</span><span style="color:#ae1800;font-weight:600">−₹430 over</span></div>
+     <div style="height:6px;background:#d7d3d3;margin-top:5px"><div style="height:6px;width:100%;background:#ec3013"></div></div>
+    </div>
+    <div>
+     <div style="display:flex;justify-content:space-between;font-size:14px;font-variant-numeric:tabular-nums"><span style="font-weight:600">Savings</span><span>₹12,000 kept</span></div>
+     <div style="height:6px;background:#d7d3d3;margin-top:5px"><div style="height:6px;width:100%;background:#201e1d"></div></div>
+    </div>
+   </div>
+  </div>
+  <div style="border-top:2px solid rgba(32,30,29,.4);padding:14px 20px">
+   <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+    <div style="font-size:13px;font-weight:800;letter-spacing:.06em">UPCOMING BILLS</div>
+    <div style="font-size:12px;font-variant-numeric:tabular-nums;color:rgba(32,30,29,.55)">₹7,350 this month</div>
+   </div>
+   <div style="display:flex;flex-direction:column">
+    <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(32,30,29,.15);font-size:13.5px;font-variant-numeric:tabular-nums"><span>Netflix</span><span style="color:rgba(32,30,29,.55)">24 Aug</span><span style="font-weight:600">₹649</span></div>
+    <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(32,30,29,.15);font-size:13.5px;font-variant-numeric:tabular-nums"><span>Jio postpaid</span><span style="color:rgba(32,30,29,.55)">28 Aug</span><span style="font-weight:600">₹701</span></div>
+    <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:13.5px;font-variant-numeric:tabular-nums"><span>SIP — Nifty 50</span><span style="color:rgba(32,30,29,.55)">1 Sep</span><span style="font-weight:600">₹6,000</span></div>
+   </div>
+  </div>
+  <div style="border-top:2px solid rgba(32,30,29,.4);padding:14px 20px;display:flex;justify-content:space-between;font-size:13px">
+   <div><div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:rgba(32,30,29,.55)">OWED TO YOU</div><div style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px">₹3,500</div></div>
+   <div style="text-align:left"><div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:rgba(32,30,29,.55)">YOU OWE</div><div style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px">₹800</div></div>
+   <div><div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:rgba(32,30,29,.55)">ACTIVE TRIP</div><div style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px">—</div></div>
+  </div>
+  <div style="border-top:2px solid rgba(32,30,29,.4);padding:14px 20px 18px">
+   <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+    <div style="font-size:13px;font-weight:800;letter-spacing:.06em">RECENT</div>
+    <div style="font-size:11px;font-weight:600;color:#ae1800;letter-spacing:.06em">SEE ALL</div>
+   </div>
+   <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(32,30,29,.15)"><div><div style="font-size:14px;font-weight:600">Swiggy</div><div style="font-size:11px;color:rgba(32,30,29,.5)">Food delivery · HDFC · auto</div></div><div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">−₹312</div></div>
+   <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(32,30,29,.15)"><div><div style="font-size:14px;font-weight:600">Ratnadeep</div><div style="font-size:11px;color:rgba(32,30,29,.5)">Groceries · BoB · auto</div></div><div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">−₹1,046</div></div>
+   <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0"><div><div style="font-size:14px;font-weight:600">Rahul — settle up</div><div style="font-size:11px;color:rgba(32,30,29,.5)">Lending · UPI · manual</div></div><div style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;color:#ae1800">+₹2,000</div></div>
+  </div>
+ </div>
+ <div style="display:flex;border-top:2px solid rgba(32,30,29,.4);background:#f3f2f2">
+  <div style="flex:1;padding:10px 0 8px;text-align:center;border-top:3px solid #ec3013;margin-top:-2px;font-size:10px;font-weight:800;letter-spacing:.06em">OVERVIEW</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">TIMELINE</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">BUCKETS</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">RECURRING</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">SETTINGS</div>
+ </div>
+</div>
+</x-import>
+</div>
+
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Timeline — day groups, auto-capture with undo</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" hint-size="412px,892px">
+<div style="height:100%;display:flex;flex-direction:column;background:#f3f2f2;color:#201e1d;font-family:'Archivo',system-ui,sans-serif">
+ <div style="flex:1;overflow:auto">
+  <div style="padding:14px 20px 0;border-bottom:2px solid rgba(32,30,29,.4)">
+   <div style="font-size:22px;font-weight:800;letter-spacing:-.01em">Timeline</div>
+   <div style="margin:12px 0;border:2px solid rgba(32,30,29,.4);padding:9px 12px;font-size:13px;color:rgba(32,30,29,.45)">Search merchant, note, person…</div>
+   <div style="display:flex;gap:8px;padding-bottom:12px;flex-wrap:wrap">
+    <span style="font-size:11px;font-weight:800;letter-spacing:.05em;padding:5px 10px;background:#201e1d;color:#f3f2f2">ALL</span>
+    <span style="font-size:11px;font-weight:600;letter-spacing:.05em;padding:5px 10px;border:1px solid rgba(32,30,29,.4);color:#ae1800">UNCATEGORISED 4</span>
+    <span style="font-size:11px;font-weight:600;letter-spacing:.05em;padding:5px 10px;border:1px solid rgba(32,30,29,.4)">HDFC</span>
+    <span style="font-size:11px;font-weight:600;letter-spacing:.05em;padding:5px 10px;border:1px solid rgba(32,30,29,.4)">BoB</span>
+    <span style="font-size:11px;font-weight:600;letter-spacing:.05em;padding:5px 10px;border:1px solid rgba(32,30,29,.4)">CASH</span>
+   </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:10px 20px 6px;font-size:11px;font-weight:800;letter-spacing:.08em;color:rgba(32,30,29,.55)"><span>TODAY · 22 AUG</span><span style="font-variant-numeric:tabular-nums">−₹1,358</span></div>
+  <div style="padding:0 20px">
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid rgba(32,30,29,.15)">
+    <div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:600">Swiggy</div><div style="font-size:11px;color:rgba(32,30,29,.5);margin-top:1px">1:12 pm · HDFC · SMS</div><div style="display:flex;gap:6px;margin-top:5px"><span style="font-size:10px;font-weight:800;letter-spacing:.05em;padding:2px 7px;background:#eae9e9">FOOD DELIVERY</span><span style="font-size:10px;font-weight:800;letter-spacing:.05em;padding:2px 7px;background:#ffe0d9;color:#ae1800">AUTO</span></div></div>
+    <div style="text-align:right"><div style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">−₹312</div><div style="font-size:10px;font-weight:800;letter-spacing:.06em;color:#ae1800;margin-top:4px">UNDO</div></div>
+   </div>
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid rgba(32,30,29,.15)">
+    <div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:600">Ratnadeep Super Market</div><div style="font-size:11px;color:rgba(32,30,29,.5);margin-top:1px">11:38 am · BoB · SMS</div><div style="display:flex;gap:6px;margin-top:5px"><span style="font-size:10px;font-weight:800;letter-spacing:.05em;padding:2px 7px;background:#eae9e9">GROCERIES</span><span style="font-size:10px;font-weight:800;letter-spacing:.05em;padding:2px 7px;background:#ffe0d9;color:#ae1800">AUTO</span></div></div>
+    <div style="text-align:right"><div style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">−₹1,046</div><div style="font-size:10px;font-weight:800;letter-spacing:.06em;color:#ae1800;margin-top:4px">UNDO</div></div>
+   </div>
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0">
+    <div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:600">UPI · 9XXXX21@ybl</div><div style="font-size:11px;color:rgba(32,30,29,.5);margin-top:1px">9:02 am · HDFC · SMS</div><div style="display:flex;gap:6px;margin-top:5px"><span style="font-size:10px;font-weight:800;letter-spacing:.05em;padding:2px 7px;border:1px dashed rgba(32,30,29,.45);color:rgba(32,30,29,.6)">PICK CATEGORY</span></div></div>
+    <div style="text-align:right"><div style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">−₹80</div></div>
+   </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:10px 20px 6px;border-top:2px solid rgba(32,30,29,.4);font-size:11px;font-weight:800;letter-spacing:.08em;color:rgba(32,30,29,.55)"><span>YESTERDAY · 21 AUG</span><span style="font-variant-numeric:tabular-nums">−₹2,214</span></div>
+  <div style="padding:0 20px">
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid rgba(32,30,29,.15)">
+    <div style="flex:1"><div style="font-size:14.5px;font-weight:600">Uber</div><div style="font-size:11px;color:rgba(32,30,29,.5);margin-top:1px">8:44 pm · HDFC · SMS</div><div style="display:flex;gap:6px;margin-top:5px"><span style="font-size:10px;font-weight:800;letter-spacing:.05em;padding:2px 7px;background:#eae9e9">TRANSPORT</span></div></div>
+    <div style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">−₹214</div>
+   </div>
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid rgba(32,30,29,.15)">
+    <div style="flex:1"><div style="font-size:14.5px;font-weight:600">Lent to Rahul</div><div style="font-size:11px;color:rgba(32,30,29,.5);margin-top:1px">6:10 pm · Cash · manual</div><div style="display:flex;gap:6px;margin-top:5px"><span style="font-size:10px;font-weight:800;letter-spacing:.05em;padding:2px 7px;background:#eae9e9">LENDING</span></div></div>
+    <div style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">−₹2,000</div>
+   </div>
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0">
+    <div style="flex:1"><div style="font-size:14.5px;font-weight:600">Amazon refund</div><div style="font-size:11px;color:rgba(32,30,29,.5);margin-top:1px">2:20 pm · HDFC · SMS</div><div style="display:flex;gap:6px;margin-top:5px"><span style="font-size:10px;font-weight:800;letter-spacing:.05em;padding:2px 7px;background:#eae9e9">SHOPPING</span></div></div>
+    <div style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;color:#ae1800">+₹499</div>
+   </div>
+  </div>
+ </div>
+ <div>
+  <div style="display:flex;justify-content:space-between;align-items:center;background:#ec3013;color:#fff;padding:12px 20px;font-size:12px;font-weight:800;letter-spacing:.06em"><span>ADD TRANSACTION</span><span style="font-size:18px;font-weight:400;line-height:1">+</span></div>
+  <div style="display:flex;border-top:2px solid rgba(32,30,29,.4);background:#f3f2f2">
+   <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">OVERVIEW</div>
+   <div style="flex:1;padding:10px 0 8px;text-align:center;border-top:3px solid #ec3013;margin-top:-2px;font-size:10px;font-weight:800;letter-spacing:.06em">TIMELINE</div>
+   <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">BUCKETS</div>
+   <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">RECURRING</div>
+   <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">SETTINGS</div>
+  </div>
+ </div>
+</div>
+</x-import>
+</div>
+
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Buckets — salary split + month status</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" hint-size="412px,892px">
+<div style="height:100%;display:flex;flex-direction:column;background:#f3f2f2;color:#201e1d;font-family:'Archivo',system-ui,sans-serif">
+ <div style="flex:1;overflow:auto">
+  <div style="padding:14px 20px 12px;border-bottom:2px solid rgba(32,30,29,.4);display:flex;justify-content:space-between;align-items:baseline">
+   <div style="font-size:22px;font-weight:800;letter-spacing:-.01em">Buckets</div>
+   <div style="font-size:11px;letter-spacing:.08em;color:rgba(32,30,29,.55)">AUGUST 2026</div>
+  </div>
+  <sc-if value="{{ showSalary }}" hint-placeholder-val="{{ true }}">
+  <div style="margin:16px 20px 0;border:2px solid #ec3013;background:#fff2ef">
+   <div style="padding:14px 16px 12px">
+    <div style="font-size:11px;font-weight:800;letter-spacing:.1em;color:#ae1800">SALARY DETECTED · 1 AUG</div>
+    <div style="font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px">₹85,000</div>
+    <div style="display:flex;flex-direction:column;gap:3px;margin-top:10px;font-size:13px;font-variant-numeric:tabular-nums">
+     <div style="display:flex;justify-content:space-between"><span>Essentials · 40%</span><span style="font-weight:600">₹34,000</span></div>
+     <div style="display:flex;justify-content:space-between"><span>Savings · fixed</span><span style="font-weight:600">₹12,000</span></div>
+     <div style="display:flex;justify-content:space-between"><span>Fun · 10%</span><span style="font-weight:600">₹8,500</span></div>
+     <div style="display:flex;justify-content:space-between"><span>Bike · fixed</span><span style="font-weight:600">₹6,000</span></div>
+     <div style="display:flex;justify-content:space-between;color:rgba(32,30,29,.55)"><span>Unallocated</span><span>₹24,500</span></div>
+    </div>
+   </div>
+   <div style="display:flex;border-top:2px solid #ec3013">
+    <div style="flex:1;padding:11px 16px;background:#ec3013;color:#fff;font-size:12px;font-weight:800;letter-spacing:.06em;text-align:left">SPLIT NOW</div>
+    <div style="flex:1;padding:11px 16px;font-size:12px;font-weight:800;letter-spacing:.06em;color:#ae1800">NOT THIS TIME</div>
+   </div>
+  </div>
+  </sc-if>
+  <div style="padding:18px 20px 6px;font-size:13px;font-weight:800;letter-spacing:.06em">THIS MONTH</div>
+  <div style="padding:0 20px;display:flex;flex-direction:column;gap:14px;padding-bottom:20px">
+   <div style="border:1px solid rgba(32,30,29,.25);background:#eae9e9;padding:14px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:800">Essentials</span><span style="font-size:11px;color:rgba(32,30,29,.5);letter-spacing:.04em">40% OF SALARY</span></div>
+    <div style="height:6px;background:#d7d3d3;margin:10px 0 8px"><div style="height:6px;width:62%;background:#201e1d"></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;font-variant-numeric:tabular-nums">
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">ALLOC</div><div style="font-size:13px;font-weight:600">₹34,000</div></div>
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">SPENT</div><div style="font-size:13px;font-weight:600">₹19,470</div></div>
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">RESERVED</div><div style="font-size:13px;font-weight:600">₹5,350</div></div>
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">LEFT</div><div style="font-size:13px;font-weight:800">₹9,180</div></div>
+    </div>
+   </div>
+   <div style="border:1px solid rgba(32,30,29,.25);background:#eae9e9;padding:14px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:800">Fun</span><span style="font-size:11px;color:rgba(32,30,29,.5);letter-spacing:.04em">10% OF SALARY</span></div>
+    <div style="height:6px;background:#d7d3d3;margin:10px 0 8px"><div style="height:6px;width:74%;background:#201e1d"></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;font-variant-numeric:tabular-nums">
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">ALLOC</div><div style="font-size:13px;font-weight:600">₹8,500</div></div>
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">SPENT</div><div style="font-size:13px;font-weight:600">₹5,791</div></div>
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">RESERVED</div><div style="font-size:13px;font-weight:600">₹649</div></div>
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">LEFT</div><div style="font-size:13px;font-weight:800">₹2,060</div></div>
+    </div>
+   </div>
+   <div style="border:2px solid #ec3013;background:#eae9e9;padding:14px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:800">Bike</span><span style="font-size:11px;font-weight:800;color:#ae1800;letter-spacing:.04em">OVERSPENT</span></div>
+    <div style="height:6px;background:#d7d3d3;margin:10px 0 8px"><div style="height:6px;width:100%;background:#ec3013"></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;font-variant-numeric:tabular-nums">
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">ALLOC</div><div style="font-size:13px;font-weight:600">₹6,000</div></div>
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">SPENT</div><div style="font-size:13px;font-weight:600">₹6,430</div></div>
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">RESERVED</div><div style="font-size:13px;font-weight:600">₹0</div></div>
+     <div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:rgba(32,30,29,.5)">LEFT</div><div style="font-size:13px;font-weight:800;color:#ae1800">−₹430</div></div>
+    </div>
+   </div>
+   <div style="border:1px solid rgba(32,30,29,.25);background:#eae9e9;padding:14px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:800">Savings</span><span style="font-size:11px;color:rgba(32,30,29,.5);letter-spacing:.04em">FIXED ₹12,000</span></div>
+    <div style="height:6px;background:#d7d3d3;margin:10px 0 8px"><div style="height:6px;width:100%;background:#201e1d"></div></div>
+    <div style="font-size:12px;color:rgba(32,30,29,.55)">Untouched this month — kept aside on salary day.</div>
+   </div>
+   <div style="display:flex;justify-content:space-between;align-items:center;border:2px solid rgba(32,30,29,.4);padding:11px 16px">
+    <span style="font-size:12px;font-weight:800;letter-spacing:.06em">EDIT SPLIT PLAN & ORDER</span>
+    <span style="font-size:14px">→</span>
+   </div>
+  </div>
+ </div>
+ <div style="display:flex;border-top:2px solid rgba(32,30,29,.4);background:#f3f2f2">
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">OVERVIEW</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">TIMELINE</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;border-top:3px solid #ec3013;margin-top:-2px;font-size:10px;font-weight:800;letter-spacing:.06em">BUCKETS</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">RECURRING</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">SETTINGS</div>
+ </div>
+</div>
+</x-import>
+</div>
+
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Settings — grouped, privacy up front</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" hint-size="412px,892px">
+<div style="height:100%;display:flex;flex-direction:column;background:#f3f2f2;color:#201e1d;font-family:'Archivo',system-ui,sans-serif">
+ <div style="flex:1;overflow:auto">
+  <div style="padding:14px 20px 12px;border-bottom:2px solid rgba(32,30,29,.4)">
+   <div style="font-size:22px;font-weight:800;letter-spacing:-.01em">Settings</div>
+  </div>
+  <div style="margin:16px 20px 0;background:#201e1d;color:#f3f2f2;padding:14px 16px">
+   <div style="font-size:11px;font-weight:800;letter-spacing:.1em;color:#ff9783">PRIVATE BY DESIGN</div>
+   <div style="font-size:13px;line-height:1.5;margin-top:4px">Everything stays on this phone. No cloud, no account, no analytics. Export anytime.</div>
+  </div>
+  <div style="padding:18px 20px 4px;font-size:11px;font-weight:800;letter-spacing:.1em;color:rgba(32,30,29,.55)">CAPTURE</div>
+  <div style="margin:6px 20px 0;border-top:2px solid rgba(32,30,29,.4)">
+   <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid rgba(32,30,29,.15)"><div><div style="font-size:14px;font-weight:600">SMS capture</div><div style="font-size:11px;color:rgba(32,30,29,.5)">BoB + HDFC templates · 214 parsed</div></div><span style="font-size:10px;font-weight:800;letter-spacing:.05em;padding:3px 8px;background:#ffe0d9;color:#ae1800">ON</span></div>
+   <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid rgba(32,30,29,.15)"><div><div style="font-size:14px;font-weight:600">Category rules</div><div style="font-size:11px;color:rgba(32,30,29,.5)">31 learned merchant rules</div></div><span style="font-size:14px">→</span></div>
+   <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0"><div><div style="font-size:14px;font-weight:600">Activity log</div><div style="font-size:11px;color:rgba(32,30,29,.5)">Every auto action, with undo</div></div><span style="font-size:14px">→</span></div>
+  </div>
+  <div style="padding:18px 20px 4px;font-size:11px;font-weight:800;letter-spacing:.1em;color:rgba(32,30,29,.55)">MONEY</div>
+  <div style="margin:6px 20px 0;border-top:2px solid rgba(32,30,29,.4)">
+   <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid rgba(32,30,29,.15)"><div><div style="font-size:14px;font-weight:600">Accounts</div><div style="font-size:11px;color:rgba(32,30,29,.5)">HDFC · BoB · Cash</div></div><span style="font-size:14px">→</span></div>
+   <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid rgba(32,30,29,.15)"><div><div style="font-size:14px;font-weight:600">Salary plan</div><div style="font-size:11px;color:rgba(32,30,29,.5)">4 buckets · split on salary credit</div></div><span style="font-size:14px">→</span></div>
+   <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid rgba(32,30,29,.15)"><div><div style="font-size:14px;font-weight:600">Category → bucket mapping</div><div style="font-size:11px;color:rgba(32,30,29,.5)">Which bucket each category drains</div></div><span style="font-size:14px">→</span></div>
+   <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid rgba(32,30,29,.15)"><div><div style="font-size:14px;font-weight:600">People</div><div style="font-size:11px;color:rgba(32,30,29,.5)">Balances, lending ledger</div></div><span style="font-size:14px">→</span></div>
+   <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0"><div><div style="font-size:14px;font-weight:600">Trips</div><div style="font-size:11px;color:rgba(32,30,29,.5)">Auto-file spending into a trip window</div></div><span style="font-size:14px">→</span></div>
+  </div>
+  <div style="padding:18px 20px 4px;font-size:11px;font-weight:800;letter-spacing:.1em;color:rgba(32,30,29,.55)">DATA</div>
+  <div style="margin:6px 20px 20px;border-top:2px solid rgba(32,30,29,.4)">
+   <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid rgba(32,30,29,.15)"><div><div style="font-size:14px;font-weight:600">Export</div><div style="font-size:11px;color:rgba(32,30,29,.5)">CSV / Excel — all sheets, no lock-in</div></div><span style="font-size:14px">→</span></div>
+   <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0"><div><div style="font-size:14px;font-weight:600">Backup</div><div style="font-size:11px;color:rgba(32,30,29,.5)">Encrypted file on device storage</div></div><span style="font-size:14px">→</span></div>
+  </div>
+ </div>
+ <div style="display:flex;border-top:2px solid rgba(32,30,29,.4);background:#f3f2f2">
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">OVERVIEW</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">TIMELINE</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">BUCKETS</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(32,30,29,.5)">RECURRING</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;border-top:3px solid #ec3013;margin-top:-2px;font-size:10px;font-weight:800;letter-spacing:.06em">SETTINGS</div>
+ </div>
+</div>
+</x-import>
+</div>
+
+<div class="dv-opt" id="1e"><div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Overview — dark theme</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+<div style="height:100%;display:flex;flex-direction:column;background:#201e1d;color:#f3f2f2;font-family:'Archivo',system-ui,sans-serif">
+ <div style="flex:1;overflow:auto">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;padding:14px 20px 10px;border-bottom:2px solid rgba(243,242,242,.35)">
+   <div style="font-size:13px;font-weight:800;letter-spacing:.1em">MONEY BRAIN</div>
+   <div style="font-size:11px;letter-spacing:.08em;color:rgba(243,242,242,.5)">AUGUST 2026</div>
+  </div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;padding:10px 20px;background:#4d170e;border-bottom:2px solid rgba(243,242,242,.35);font-size:12px;font-weight:600">
+   <span style="color:#ff9783;text-decoration:underline;text-underline-offset:3px">2 unrecognised SMS</span>
+   <span style="color:#ff9783;text-decoration:underline;text-underline-offset:3px">4 uncategorised</span>
+   <span style="color:#ff9783;text-decoration:underline;text-underline-offset:3px">1 recurring detected</span>
+  </div>
+  <div style="padding:22px 20px 18px;border-bottom:2px solid rgba(243,242,242,.35)">
+   <div style="font-size:11px;font-weight:800;letter-spacing:.1em;color:rgba(243,242,242,.5)">SAFE TO SPEND</div>
+   <div style="font-size:46px;font-weight:800;letter-spacing:-.02em;line-height:1.05;margin-top:4px;font-variant-numeric:tabular-nums">₹18,240</div>
+   <div style="font-size:12px;color:rgba(243,242,242,.5);margin-top:6px">of ₹52,000 allocated · ₹7,350 reserved for bills · 9 days left</div>
+  </div>
+  <div style="padding:16px 20px 6px">
+   <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+    <div style="font-size:13px;font-weight:800;letter-spacing:.06em">BUCKETS</div>
+    <div style="font-size:11px;font-weight:600;color:#ff9783;letter-spacing:.06em">EDIT PLAN</div>
+   </div>
+   <div style="display:flex;flex-direction:column;gap:12px;padding-bottom:14px">
+    <div>
+     <div style="display:flex;justify-content:space-between;font-size:14px;font-variant-numeric:tabular-nums"><span style="font-weight:600">Essentials</span><span>₹9,180 left</span></div>
+     <div style="height:6px;background:#444141;margin-top:5px"><div style="height:6px;width:62%;background:#f3f2f2"></div></div>
+    </div>
+    <div>
+     <div style="display:flex;justify-content:space-between;font-size:14px;font-variant-numeric:tabular-nums"><span style="font-weight:600">Fun</span><span>₹2,060 left</span></div>
+     <div style="height:6px;background:#444141;margin-top:5px"><div style="height:6px;width:74%;background:#f3f2f2"></div></div>
+    </div>
+    <div>
+     <div style="display:flex;justify-content:space-between;font-size:14px;font-variant-numeric:tabular-nums"><span style="font-weight:600">Bike</span><span style="color:#ff9783;font-weight:600">−₹430 over</span></div>
+     <div style="height:6px;background:#444141;margin-top:5px"><div style="height:6px;width:100%;background:#ff563c"></div></div>
+    </div>
+    <div>
+     <div style="display:flex;justify-content:space-between;font-size:14px;font-variant-numeric:tabular-nums"><span style="font-weight:600">Savings</span><span>₹12,000 kept</span></div>
+     <div style="height:6px;background:#444141;margin-top:5px"><div style="height:6px;width:100%;background:#f3f2f2"></div></div>
+    </div>
+   </div>
+  </div>
+  <div style="border-top:2px solid rgba(243,242,242,.35);padding:14px 20px">
+   <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+    <div style="font-size:13px;font-weight:800;letter-spacing:.06em">UPCOMING BILLS</div>
+    <div style="font-size:12px;font-variant-numeric:tabular-nums;color:rgba(243,242,242,.5)">₹7,350 this month</div>
+   </div>
+   <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(243,242,242,.15);font-size:13.5px;font-variant-numeric:tabular-nums"><span>Netflix</span><span style="color:rgba(243,242,242,.5)">24 Aug</span><span style="font-weight:600">₹649</span></div>
+   <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(243,242,242,.15);font-size:13.5px;font-variant-numeric:tabular-nums"><span>Jio postpaid</span><span style="color:rgba(243,242,242,.5)">28 Aug</span><span style="font-weight:600">₹701</span></div>
+   <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:13.5px;font-variant-numeric:tabular-nums"><span>SIP — Nifty 50</span><span style="color:rgba(243,242,242,.5)">1 Sep</span><span style="font-weight:600">₹6,000</span></div>
+  </div>
+  <div style="border-top:2px solid rgba(243,242,242,.35);padding:14px 20px 18px">
+   <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+    <div style="font-size:13px;font-weight:800;letter-spacing:.06em">RECENT</div>
+    <div style="font-size:11px;font-weight:600;color:#ff9783;letter-spacing:.06em">SEE ALL</div>
+   </div>
+   <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(243,242,242,.15)"><div><div style="font-size:14px;font-weight:600">Swiggy</div><div style="font-size:11px;color:rgba(243,242,242,.45)">Food delivery · HDFC · auto</div></div><div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">−₹312</div></div>
+   <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0"><div><div style="font-size:14px;font-weight:600">Ratnadeep</div><div style="font-size:11px;color:rgba(243,242,242,.45)">Groceries · BoB · auto</div></div><div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">−₹1,046</div></div>
+  </div>
+ </div>
+ <div style="display:flex;border-top:2px solid rgba(243,242,242,.35);background:#201e1d">
+  <div style="flex:1;padding:10px 0 8px;text-align:center;border-top:3px solid #ff563c;margin-top:-2px;font-size:10px;font-weight:800;letter-spacing:.06em">OVERVIEW</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(243,242,242,.45)">TIMELINE</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(243,242,242,.45)">BUCKETS</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(243,242,242,.45)">RECURRING</div>
+  <div style="flex:1;padding:10px 0 8px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(243,242,242,.45)">SETTINGS</div>
+ </div>
+</div>
+</x-import>
+</div>
+
+</div>
+<p class="dv-next">Try next: "riff on the Overview hero — try 2-3 layouts" · "do Recurring and the transaction editor in this style" · "make <a class="dv-oid" href="#1e">1e</a> the default and dark-theme all screens" · "hand this off to Claude Code as a spec"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showAttention&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo states&quot;},&quot;showSalary&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo states&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      showAttention: this.props.showAttention ?? true,
+      showSalary: this.props.showSalary ?? true,
+    };
+  }
+}
+</script>
+</body>
+</html>
