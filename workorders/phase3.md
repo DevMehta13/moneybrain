@@ -208,3 +208,9 @@ Do not re-add convenience overloads to architect-owned APIs.
   allocations exist, and negative remaining uses the Material error color. `./gradlew test` and
   the debug build pass. The debug APK was installed over the existing app with `adb install -r`
   successfully; no architect-owned files were changed.
+- Plan-order UX fix: removed the misleading per-bucket Up/Down controls and added a global,
+  numbered Split order list beneath the bucket cards. Its controls reorder the same global plan
+  sequence that salary splitting uses, with an explanation of the priority rule. Per-bucket
+  remove and add-entry controls remain unchanged. `./gradlew test` and the debug build pass;
+  the APK was installed over the existing app successfully. No schema or architect-owned files
+  changed.

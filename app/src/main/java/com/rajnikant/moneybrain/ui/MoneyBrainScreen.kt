@@ -263,14 +263,30 @@ private fun BucketsScreen(viewModel: BucketsViewModel) {
                         TextButton(onClick = { viewModel.deleteBucket(status.bucket.id) }) { Text("Remove") }
                     }
                     Text("Allocated ${Money.formatPaise(status.allocated)} · Spent ${Money.formatPaise(status.spent)} · Remaining ${Money.formatPaise(remaining)}", color = if (remaining < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-                    bucketPlans.forEachIndexed { index, entry ->
+                    bucketPlans.forEach { entry ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(if (entry.kind == "PERCENT") "${entry.value / 100}%" else Money.formatPaise(entry.value))
-                            Row { TextButton(onClick = { viewModel.movePlan(plans, entry.id, -1) }, enabled = plans.indexOf(entry) > 0) { Text("Up") }; TextButton(onClick = { viewModel.movePlan(plans, entry.id, 1) }, enabled = plans.indexOf(entry) < plans.lastIndex) { Text("Down") }; TextButton(onClick = { viewModel.deletePlan(entry.id) }) { Text("Remove") } }
+                            TextButton(onClick = { viewModel.deletePlan(entry.id) }) { Text("Remove") }
                         }
                     }
                     PlanEntryAdder(onPercent = { viewModel.addPercent(status.bucket.id, it) }, onFixed = { viewModel.addFixed(status.bucket.id, it) })
                 } }
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Split order", style = MaterialTheme.typography.titleMedium)
+                    Text("When the plan asks for more than the salary has, entries higher in this list are filled first.")
+                    plans.forEachIndexed { index, entry ->
+                        val bucketName = statuses.firstOrNull { it.bucket.id == entry.bucketId }?.bucket?.name ?: "Deleted bucket"
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("${index + 1}. $bucketName — ${if (entry.kind == "PERCENT") "${entry.value / 100}%" else Money.formatPaise(entry.value)}")
+                            Row {
+                                TextButton(onClick = { viewModel.movePlan(plans, entry.id, -1) }, enabled = index > 0) { Text("Up") }
+                                TextButton(onClick = { viewModel.movePlan(plans, entry.id, 1) }, enabled = index < plans.lastIndex) { Text("Down") }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
