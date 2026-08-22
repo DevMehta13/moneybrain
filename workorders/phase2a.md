@@ -62,4 +62,17 @@ BoB/HDFC parsing templates. No live capture yet, no database writes, nothing aut
 
 ## Result
 
-(Fill in after execution.)
+- Added the `READ_SMS` permission only, with no receiver, database write, or new dependency.
+- Added Settings → SMS capture (setup). The capture screen requests permission with the
+  standard runtime launcher, explains a denial and allows retry.
+- With permission, it scans at most 500 inbox rows in newest-first order, retains only
+  `SmsParser.isBankSender` matches, and shows the parser result and date. Raw bodies exist
+  only while each row is processed; screen state and clipboard samples contain only
+  `SmsMask.mask` output. Sender labels are masked too.
+- Copy masked samples limits itself to the 30 newest unrecognised messages and confirms via
+  snackbar. There are no logs or files containing SMS text.
+- `./gradlew test` passed, including the unmodified architect-owned capture tests. The debug
+  APK built, installed, and launched on the connected phone. SMS permission was granted;
+  the capture list showed masked bodies only and Copy masked samples completed successfully.
+- Verified the architect-owned `SmsParser.kt`, `SmsMask.kt`, `Fingerprint.kt`, and
+  `CaptureTest.kt` have no local changes.

@@ -1,5 +1,13 @@
 package com.rajnikant.moneybrain.ui
 
+import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.ContentResolver
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,6 +35,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
@@ -51,6 +62,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rajnikant.moneybrain.MoneyBrainApp
+import com.rajnikant.moneybrain.capture.SmsMask
+import com.rajnikant.moneybrain.capture.SmsParser
 import com.rajnikant.moneybrain.data.AccountEntity
 import com.rajnikant.moneybrain.data.CategoryEntity
 import com.rajnikant.moneybrain.money.Money
@@ -65,10 +78,14 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val timelineRoute = "timeline"
 private const val settingsRoute = "settings"
 private const val accountsRoute = "accounts"
+private const val captureRoute = "capture"
 private const val addRoute = "add"
 private const val editRoute = "edit/{transactionId}"
 
@@ -112,11 +129,17 @@ fun MoneyBrainScreen() {
                 TimelineScreen(viewModel) { id -> navController.navigate("edit/$id") }
             }
             composable(settingsRoute) {
-                SettingsScreen(onAccounts = { navController.navigate(accountsRoute) })
+                SettingsScreen(
+                    onAccounts = { navController.navigate(accountsRoute) },
+                    onCapture = { navController.navigate(captureRoute) },
+                )
             }
             composable(accountsRoute) {
                 val viewModel: AccountsViewModel = viewModel(factory = factory)
                 AccountsScreen(viewModel, onBack = { navController.popBackStack() })
+            }
+            composable(captureRoute) {
+                CaptureScreen(onBack = { navController.popBackStack() })
             }
             composable(addRoute) {
                 val viewModel: TransactionEditorViewModel = viewModel(factory = factory)
@@ -415,7 +438,7 @@ private fun CategoryPicker(
 }
 
 @Composable
-private fun SettingsScreen(onAccounts: () -> Unit) {
+private fun SettingsScreen(onAccounts: () -> Unit, onCapture: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
@@ -425,6 +448,147 @@ private fun SettingsScreen(onAccounts: () -> Unit) {
                 Text("View or add bank, card, and cash accounts")
             }
         }
+        Spacer(Modifier.height(12.dp))
+        Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onCapture)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("SMS capture (setup)", style = MaterialTheme.typography.titleMedium)
+                Text("Review masked bank SMS samples")
+            }
+        }
+    }
+}
+
+private data class CapturedMessage(
+    val sender: String,
+    val maskedBody: String,
+    val date: Long,
+    val recognised: Boolean,
+)
+
+@Composable
+private fun CaptureScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    var permissionGranted by remember {
+        mutableStateOf(context.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED)
+    }
+    var permissionDenied by remember { mutableStateOf(false) }
+    var messages by remember { mutableStateOf(emptyList<CapturedMessage>()) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        permissionGranted = granted
+        permissionDenied = !granted
+    }
+
+    LaunchedEffect(permissionGranted) {
+        messages = if (permissionGranted) {
+            withContext(Dispatchers.IO) { readBankMessages(context.contentResolver) }
+        } else {
+            emptyList()
+        }
+    }
+
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
+        if (!permissionGranted) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                TextButton(onClick = onBack) { Text("Back") }
+                Text("SMS capture", style = MaterialTheme.typography.headlineSmall)
+                Text("Money Brain reads bank SMS to record payments automatically. Messages never leave this phone unmasked.")
+                if (permissionDenied) {
+                    Text("SMS permission was not granted. You can try again whenever you are ready.")
+                }
+                Button(onClick = { permissionLauncher.launch(Manifest.permission.READ_SMS) }) {
+                    Text("Grant permission")
+                }
+            }
+        } else {
+            val recognisedCount = messages.count { it.recognised }
+            val unrecognised = messages.filterNot { it.recognised }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item {
+                    TextButton(onClick = onBack) { Text("Back") }
+                }
+                item {
+                    Text("SMS capture", style = MaterialTheme.typography.headlineSmall)
+                    Text("Bank messages: ${messages.size} · recognised: $recognisedCount · unrecognised: ${unrecognised.size}")
+                }
+                item {
+                    Button(
+                        onClick = {
+                            val samples = unrecognised.take(30).joinToString("\n\n") { message ->
+                                "[${message.sender}]\n${message.maskedBody}"
+                            }
+                            val clipboard = context.getSystemService(ClipboardManager::class.java)
+                            clipboard.setPrimaryClip(ClipData.newPlainText("Masked bank SMS samples", samples))
+                            scope.launch { snackbarHostState.showSnackbar("Masked samples copied") }
+                        },
+                        enabled = unrecognised.isNotEmpty(),
+                    ) { Text("Copy masked samples") }
+                }
+                items(messages, key = { "${it.date}-${it.sender}-${it.maskedBody}" }) { message ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(message.sender, fontWeight = FontWeight.Medium)
+                            Text(if (message.recognised) "Recognised" else "Unrecognised")
+                            Text(message.maskedBody)
+                            Text(
+                                Instant.ofEpochMilli(message.date)
+                                    .atZone(ZoneId.systemDefault())
+                                    .format(DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH)),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun readBankMessages(contentResolver: ContentResolver): List<CapturedMessage> {
+    return try {
+        contentResolver.query(
+            Uri.parse("content://sms/inbox"),
+            arrayOf("address", "body", "date"),
+            null,
+            null,
+            "date DESC",
+        )?.use { cursor ->
+            val senderIndex = cursor.getColumnIndexOrThrow("address")
+            val bodyIndex = cursor.getColumnIndexOrThrow("body")
+            val dateIndex = cursor.getColumnIndexOrThrow("date")
+            buildList {
+                var rowsScanned = 0
+                while (rowsScanned < 500 && cursor.moveToNext()) {
+                    rowsScanned += 1
+                    val sender = cursor.getString(senderIndex).orEmpty()
+                    if (!SmsParser.isBankSender(sender)) continue
+                    val rawBody = cursor.getString(bodyIndex).orEmpty()
+                    add(
+                        CapturedMessage(
+                            sender = SmsMask.mask(sender),
+                            maskedBody = SmsMask.mask(rawBody),
+                            date = cursor.getLong(dateIndex),
+                            recognised = SmsParser.parse(sender, rawBody) != null,
+                        ),
+                    )
+                }
+            }
+        }.orEmpty()
+    } catch (_: SecurityException) {
+        emptyList()
     }
 }
 
