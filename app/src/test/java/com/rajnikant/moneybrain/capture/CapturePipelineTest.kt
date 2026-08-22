@@ -28,6 +28,16 @@ private class FakeStore : CaptureStore, UndoStore, RuleStore {
 
     override suspend fun categoryIdForMerchant(merchantKey: String): Long? = rules[merchantKey]?.second
 
+    var activeTrip: ActiveTrip? = null
+    val recurringMerchants = mutableSetOf<String>()
+    val transactionTrips = mutableMapOf<Long, Long?>()
+    override suspend fun activeTrip(atMillis: Long): ActiveTrip? = activeTrip
+    override suspend fun hasActiveRecurringForMerchant(merchantKey: String): Boolean =
+        merchantKey in recurringMerchants
+    override suspend fun fileTransactionToTrip(transactionId: Long, tripId: Long) {
+        transactionTrips[transactionId] = tripId
+    }
+
     override suspend fun insertTransactionIfNew(transaction: NewTransaction): Long? {
         if (transactions.values.any { it.fingerprint == transaction.fingerprint }) return null
         return id().also { transactions[it] = transaction }
@@ -78,6 +88,8 @@ private class FakeStore : CaptureStore, UndoStore, RuleStore {
     val recurringDues = mutableMapOf<Long, String>()
     override suspend fun setRecurringNextDue(id: Long, nextDueIso: String): Boolean =
         if (recurringDues.containsKey(id)) { recurringDues[id] = nextDueIso; true } else false
+    override suspend fun setTransactionTrip(id: Long, tripId: Long?): Boolean =
+        if (transactions.containsKey(id)) { transactionTrips[id] = tripId; true } else false
 
     fun actionsOfKind(kind: String) = actions.values.filter { it.kind == kind }
 }
@@ -146,6 +158,44 @@ class CaptureProcessorTest {
         assertEquals(CaptureOutcome.Ignored, outcome)
         assertEquals(0, store.unparsed.size)
         assertEquals(0, store.transactions.size)
+    }
+
+    @Test fun `capture during an active trip files to it undoably`() = runBlocking {
+        val store = FakeStore()
+        store.activeTrip = ActiveTrip(77, "Goa")
+        val outcome = CaptureProcessor(store).process("JK-BOBSMS-S", BOB_DEBIT, 1_000_000L)
+
+        val txnId = (outcome as CaptureOutcome.Captured).transactionId
+        assertEquals(77L, store.transactionTrips[txnId])
+        val filed = store.actionsOfKind(ActionKinds.TRIP_FILED).single()
+        assertEquals(txnId, filed.targetId)
+
+        assertEquals(UndoResult.Done, UndoEngine(store).undo(filed.id, 9_999L))
+        assertNull(store.transactionTrips[txnId])
+    }
+
+    @Test fun `recurring bill merchants never file to trips`() = runBlocking {
+        val store = FakeStore()
+        store.activeTrip = ActiveTrip(77, "Goa")
+        store.recurringMerchants.add("crazzyproduct@axl")
+        CaptureProcessor(store).process("JK-BOBSMS-S", BOB_DEBIT, 1_000_000L)
+        assertEquals(0, store.actionsOfKind(ActionKinds.TRIP_FILED).size)
+        assertTrue(store.transactionTrips.isEmpty())
+    }
+
+    @Test fun `no active trip means no filing`() = runBlocking {
+        val store = FakeStore()
+        CaptureProcessor(store).process("JK-BOBSMS-S", BOB_DEBIT, 1_000_000L)
+        assertEquals(0, store.actionsOfKind(ActionKinds.TRIP_FILED).size)
+    }
+
+    @Test fun `credits never file to trips`() = runBlocking {
+        val store = FakeStore()
+        store.activeTrip = ActiveTrip(77, "Goa")
+        val credit = "Dear BOB UPI User: Your account is credited with INR 3400.00 on " +
+            "2026-08-05 02:23:26 PM by UPI Ref No 522199887766; AvlBal: Rs3959.11 - BOB"
+        CaptureProcessor(store).process("JK-BOBSMS-S", credit, 1_000_000L)
+        assertEquals(0, store.actionsOfKind(ActionKinds.TRIP_FILED).size)
     }
 
     @Test fun `merchant keys normalise`() {

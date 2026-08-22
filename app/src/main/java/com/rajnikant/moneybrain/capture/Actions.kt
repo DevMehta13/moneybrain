@@ -15,6 +15,7 @@ object ActionKinds {
     const val SALARY_SPLIT = "SALARY_SPLIT"               // target: salary transaction. Undo: delete its allocations.
     const val RECURRING_MATCHED = "RECURRING_MATCHED"     // target: recurring item. Undo: restore previous nextDue.
     const val RECURRING_SKIPPED = "RECURRING_SKIPPED"     // target: recurring item. Undo: restore previous nextDue.
+    const val TRIP_FILED = "TRIP_FILED"                   // target: transaction. Undo: restore previous trip (usually none).
 }
 
 /** Payload keys. Empty string encodes null. */
@@ -25,6 +26,8 @@ object PayloadKeys {
     const val ALLOCATION_IDS = "allocationIds"
     /** ISO date the recurring item's nextDue held before a match/skip advanced it. */
     const val OLD_NEXT_DUE = "oldNextDue"
+    /** Trip id a transaction had before auto-filing ("" = none). */
+    const val OLD_TRIP_ID = "oldTripId"
 }
 
 /**
@@ -96,6 +99,8 @@ interface UndoStore {
     suspend fun deleteAllocations(ids: List<Long>): Int
     /** Restores a recurring item's nextDue; false when the item no longer exists. */
     suspend fun setRecurringNextDue(id: Long, nextDueIso: String): Boolean
+    /** Sets a transaction's trip (null = none); false when the transaction no longer exists. */
+    suspend fun setTransactionTrip(id: Long, tripId: Long?): Boolean
 }
 
 sealed interface UndoResult {
@@ -142,6 +147,12 @@ class UndoEngine(private val store: UndoStore) {
                 val oldDue = action.payload[PayloadKeys.OLD_NEXT_DUE]
                 if (oldDue.isNullOrBlank()) UndoResult.TargetGone
                 else if (store.setRecurringNextDue(action.targetId, oldDue)) UndoResult.Done
+                else UndoResult.TargetGone
+            }
+
+            ActionKinds.TRIP_FILED -> {
+                val oldTrip = action.payload[PayloadKeys.OLD_TRIP_ID].orEmpty().toLongOrNull()
+                if (store.setTransactionTrip(action.targetId, oldTrip)) UndoResult.Done
                 else UndoResult.TargetGone
             }
 

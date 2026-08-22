@@ -24,11 +24,18 @@ data class NewTransaction(
     val createdAt: Long,
 )
 
+/** The currently running trip, if any (endedAt null, started before the given moment). */
+data class ActiveTrip(val id: Long, val name: String)
+
 interface CaptureStore {
     suspend fun accountIdForBank(bankCode: String): Long?
     suspend fun createAccount(name: String, type: String, bankCode: String, createdAt: Long): Long
     /** Exact match on the normalised merchant key; null when no rule exists. */
     suspend fun categoryIdForMerchant(merchantKey: String): Long?
+    suspend fun activeTrip(atMillis: Long): ActiveTrip?
+    /** True when an ACTIVE recurring item exists for this merchant (bills never file to trips). */
+    suspend fun hasActiveRecurringForMerchant(merchantKey: String): Boolean
+    suspend fun fileTransactionToTrip(transactionId: Long, tripId: Long)
     /** Inserts unless the fingerprint already exists; returns the new id, or null on duplicate. */
     suspend fun insertTransactionIfNew(transaction: NewTransaction): Long?
     suspend fun recordAction(
@@ -126,6 +133,21 @@ class CaptureProcessor(private val store: CaptureStore) {
                 ),
                 createdAt = receivedAtMillis,
             )
+        }
+        if (parsed.direction == "OUT") {
+            val trip = store.activeTrip(receivedAtMillis)
+            val isBill = merchantKey != null && store.hasActiveRecurringForMerchant(merchantKey)
+            if (trip != null && !isBill) {
+                store.fileTransactionToTrip(transactionId, trip.id)
+                store.recordAction(
+                    kind = ActionKinds.TRIP_FILED,
+                    targetType = "transaction",
+                    targetId = transactionId,
+                    description = "Filed to trip “${trip.name}”",
+                    payload = mapOf(PayloadKeys.OLD_TRIP_ID to ""),
+                    createdAt = receivedAtMillis,
+                )
+            }
         }
         return CaptureOutcome.Captured(transactionId, categorised = categoryId != null)
     }

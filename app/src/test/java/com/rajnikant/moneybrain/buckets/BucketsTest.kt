@@ -144,6 +144,7 @@ private class FakeBucketStore : BucketStore, UndoStore {
     override suspend fun setTransactionCategory(id: Long, categoryId: Long?) = error("not used")
     override suspend fun deleteRule(id: Long) = error("not used")
     override suspend fun setRecurringNextDue(id: Long, nextDueIso: String) = error("not used")
+    override suspend fun setTransactionTrip(id: Long, tripId: Long?) = error("not used")
     override suspend fun accountHasTransactions(id: Long) = error("not used")
     override suspend fun deleteAccount(id: Long) = error("not used")
 }
