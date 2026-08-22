@@ -127,6 +127,15 @@ that the migrated schema lacks makes Room reject the database at open.
 
 (Write questions here and push if blocked. Do not guess.)
 
+## Architect note during interim review (2026-08-22)
+
+Foundation approved — migration, entities, DAOs, adapters all correct. One removal:
+`BucketSplitterCompat.kt` (a month-defaulting `splitSalary` overload) was deleted. It was
+unused — no architect test calls it — and it defaults the month to TODAY, which files a
+late-split salary into the wrong month. When building the salary card, derive `month` from
+the SALARY TRANSACTION's `occurredAt` (device timezone, "YYYY-MM") and pass it explicitly.
+Do not re-add convenience overloads to architect-owned APIs.
+
 ## Result
 
 ### In progress — foundation pushed for review
