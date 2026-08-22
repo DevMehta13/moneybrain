@@ -1,5 +1,6 @@
 # Android / Gradle (populated when the project skeleton lands in phase 0)
 .gradle/
+.kotlin/
 build/
 local.properties
 .idea/

@@ -46,5 +46,38 @@ Rajnikant's laptop can build this repo into an APK, and the app runs on his phys
 
 ## Result
 
-(Fill in after execution: what was done, APK path/size, device model + Android version,
-anything that deviated from the order, anything the architect should look at.)
+Completed the laptop-side skeleton and build pipeline:
+
+- Installed Android Studio 2026.1.3.8 (Quail 3 Patch 1), Android SDK Platform 37,
+  Build-Tools 37.0.0, and Platform-Tools 37.0.1. There were 31 GiB free before the
+  installation. `JAVA_HOME`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, and `adb` were
+  configured in the local shell profile; Java is Android Studio's bundled JBR 25.
+- Created the Kotlin/Jetpack Compose Android project in the repository root:
+  `com.rajnikant.moneybrain`, minSdk 26, target/compile SDK 37. It has a launcher
+  icon and exactly the requested centered placeholder content: “Money Brain” and
+  “Phase 0 — skeleton v2”. No dependencies were added beyond the Compose template set.
+- A clean local build (`./gradlew clean assembleDebug`) succeeded. I then rebuilt after
+  changing the placeholder from “Phase 0 — skeleton” to “Phase 0 — skeleton v2”; the
+  final `./gradlew assembleDebug` also succeeded.
+- Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (11,571,571 bytes).
+
+Phone installation and restart acceptance checks are blocked because no Android device is
+connected: `adb devices -l` returned no devices. Device model and Android version are
+therefore not yet available, and the v2 update could not be confirmed on a phone.
+
+Rajnikant’s next steps (plain USB route):
+
+1. On the phone, open **Settings**, search for **Build number**, and tap it seven times.
+   Enter the phone PIN if asked. This turns on Developer Options.
+2. Go back to Settings, open **Developer Options**, and turn on **USB debugging**.
+3. Connect the phone to this laptop with a USB cable. If the phone asks what USB should
+   do, choose **File transfer**. Accept the “Allow USB debugging?” prompt on the phone.
+4. From this repository, run:
+   `adb install app/build/outputs/apk/debug/app-debug.apk`
+5. Open **Money Brain**, then install the next rebuilt APK with the same command. Android
+   should report success and replace the installed app without an uninstall. Restart the
+   phone and confirm Money Brain still opens.
+
+If USB does not work, copy the APK above to the phone, open it in the phone’s Files app,
+allow that app to **install unknown apps** when Android asks, and install it. Repeat after
+the next rebuild to test the replacement update.
