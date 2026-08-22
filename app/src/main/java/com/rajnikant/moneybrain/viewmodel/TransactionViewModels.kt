@@ -238,6 +238,7 @@ class MoneyBrainViewModelFactory(
             ) as T
         modelClass.isAssignableFrom(AccountsViewModel::class.java) -> AccountsViewModel(accountDao) as T
         modelClass.isAssignableFrom(ActivityViewModel::class.java) -> ActivityViewModel(database) as T
+        modelClass.isAssignableFrom(BucketsViewModel::class.java) -> BucketsViewModel(database) as T
         else -> error("Unknown ViewModel: ${modelClass.name}")
     }
 }

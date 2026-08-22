@@ -7,6 +7,7 @@ import com.rajnikant.moneybrain.capture.CaptureStore
 import com.rajnikant.moneybrain.capture.NewTransaction
 import com.rajnikant.moneybrain.capture.RuleStore
 import com.rajnikant.moneybrain.capture.UndoStore
+import com.rajnikant.moneybrain.buckets.BucketStore
 
 class RoomCaptureStore(private val database: MoneyBrainDatabase) : CaptureStore {
     private val accounts = database.accountDao()
@@ -119,4 +120,15 @@ class RoomUndoStore(private val database: MoneyBrainDatabase) : UndoStore {
     override suspend fun deleteRule(id: Long): Boolean = rules.deleteById(id) > 0
     override suspend fun accountHasTransactions(id: Long): Boolean = accounts.hasTransactions(id)
     override suspend fun deleteAccount(id: Long): Boolean = accounts.deleteById(id) > 0
+    override suspend fun deleteAllocations(ids: List<Long>): Int =
+        if (ids.isEmpty()) 0 else database.bucketAllocationDao().deleteIds(ids)
+}
+
+class RoomBucketStore(private val database: MoneyBrainDatabase) : BucketStore {
+    override suspend fun insertAllocation(bucketId: Long, month: String, amountPaise: Long, sourceTransactionId: Long?, createdAt: Long): Long =
+        database.bucketAllocationDao().insert(BucketAllocationEntity(bucketId = bucketId, month = month, amountPaise = amountPaise, sourceTransactionId = sourceTransactionId, createdAt = createdAt))
+    override suspend fun allocationsExistForSource(transactionId: Long): Boolean = database.bucketAllocationDao().existsForSource(transactionId)
+    override suspend fun recordAction(kind: String, targetType: String, targetId: Long, description: String, payload: Map<String, String>, createdAt: Long) {
+        database.actionDao().insert(ActionEntity(kind = kind, targetType = targetType, targetId = targetId, description = description, payload = ActionPayload.encode(payload), createdAt = createdAt))
+    }
 }

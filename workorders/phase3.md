@@ -129,4 +129,16 @@ that the migrated schema lacks makes Room reject the database at open.
 
 ## Result
 
-(Fill in after execution.)
+### In progress — foundation pushed for review
+
+- Implemented the hand-written Room 2→3 migration, v3 schema export, bucket entities/DAOs,
+  Room bucket adapter, and SALARY_SPLIT allocation deletion support in the undo store.
+  `categories.bucketId` and `transactions.bucketId` are nullable plain columns with no Room
+  ForeignKey declarations, matching the ALTER TABLE migration exactly.
+- Added a basic Buckets tab with current-month computed allocated/spent/remaining values and
+  a minimal bucket/percent-plan entry surface. The v3 APK was installed over the existing
+  phone app without uninstalling; it launched without a migration/Room validation error.
+- `./gradlew test` and the debug build pass with all architect-owned bucket/capture files
+  unchanged.
+- Remaining before Phase 3 completion: salary preview/split controls, full plan editing,
+  Settings category-to-bucket mapping, and transaction-level bucket overrides.

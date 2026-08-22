@@ -72,6 +72,8 @@ import com.rajnikant.moneybrain.data.CategoryEntity
 import com.rajnikant.moneybrain.money.Money
 import com.rajnikant.moneybrain.viewmodel.AccountsViewModel
 import com.rajnikant.moneybrain.viewmodel.ActivityViewModel
+import com.rajnikant.moneybrain.viewmodel.BucketsViewModel
+import com.rajnikant.moneybrain.buckets.BucketMath
 import com.rajnikant.moneybrain.viewmodel.MoneyBrainViewModelFactory
 import com.rajnikant.moneybrain.viewmodel.TimelineItem
 import com.rajnikant.moneybrain.viewmodel.TimelineEntry
@@ -89,6 +91,7 @@ import kotlinx.coroutines.withContext
 private const val timelineRoute = "timeline"
 private const val settingsRoute = "settings"
 private const val activityRoute = "activity"
+private const val bucketsRoute = "buckets"
 private const val accountsRoute = "accounts"
 private const val captureRoute = "capture"
 private const val addRoute = "add"
@@ -109,7 +112,7 @@ fun MoneyBrainScreen() {
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: timelineRoute
-    val isTopLevel = route == timelineRoute || route == activityRoute || route == settingsRoute
+    val isTopLevel = route == timelineRoute || route == activityRoute || route == bucketsRoute || route == settingsRoute
 
     Scaffold(
         bottomBar = {
@@ -144,6 +147,7 @@ fun MoneyBrainScreen() {
                 val viewModel: ActivityViewModel = viewModel(factory = factory)
                 ActivityScreen(viewModel, onAddManually = { navController.navigate(addRoute) })
             }
+            composable(bucketsRoute) { val viewModel: BucketsViewModel = viewModel(factory = factory); BucketsScreen(viewModel) }
             composable(accountsRoute) {
                 val viewModel: AccountsViewModel = viewModel(factory = factory)
                 AccountsScreen(viewModel, onBack = { navController.popBackStack() })
@@ -198,11 +202,30 @@ private fun BottomBar(navController: NavHostController, route: String) {
             label = { Text("Activity") },
         )
         NavigationBarItem(
+            selected = route == bucketsRoute,
+            onClick = { navController.navigateTopLevel(bucketsRoute) }, icon = { Text("•") }, label = { Text("Buckets") },
+        )
+        NavigationBarItem(
             selected = route == settingsRoute,
             onClick = { navController.navigateTopLevel(settingsRoute) },
             icon = { Text("•") },
             label = { Text("Settings") },
         )
+    }
+}
+
+@Composable
+private fun BucketsScreen(viewModel: BucketsViewModel) {
+    val statuses by viewModel.status.collectAsState(initial = emptyList())
+    val plans by viewModel.plans.collectAsState(initial = emptyList())
+    var name by remember { mutableStateOf("") }
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Text("Buckets", style = MaterialTheme.typography.headlineSmall) }
+        item { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("New bucket") }); Button(onClick = { viewModel.addBucket(name); name = "" }, enabled = name.isNotBlank()) { Text("Add bucket") } }
+        items(statuses, key = { it.bucket.id }) { status ->
+            val remaining = BucketMath.remaining(status.allocated, status.spent, 0)
+            Card { Column(Modifier.padding(16.dp)) { Text(status.bucket.name, fontWeight = FontWeight.Medium); Text("Allocated ${Money.formatPaise(status.allocated)} · Spent ${Money.formatPaise(status.spent)} · Remaining ${Money.formatPaise(remaining)}", color = if (remaining < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface); Text("Plan: ${plans.filter { it.bucketId == status.bucket.id }.joinToString { if (it.kind == "PERCENT") "${it.value / 100}%" else Money.formatPaise(it.value) }}") } }
+        }
     }
 }
 

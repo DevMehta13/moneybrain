@@ -27,6 +27,7 @@ interface TransactionDao {
 
     @Query("UPDATE transactions SET categoryId = :categoryId WHERE id = :id")
     suspend fun setCategory(id: Long, categoryId: Long?)
+    @Query("UPDATE transactions SET bucketId = :bucketId WHERE id = :id") suspend fun setBucket(id: Long, bucketId: Long?)
 
     @Query("SELECT * FROM transactions ORDER BY occurredAt DESC, id DESC")
     fun observeAll(): Flow<List<TransactionEntity>>
@@ -69,6 +70,25 @@ interface CategoryDao {
 
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun getById(id: Long): CategoryEntity?
+    @Update suspend fun update(category: CategoryEntity)
+}
+
+@Dao interface BucketDao {
+    @Query("SELECT * FROM buckets ORDER BY sortOrder, id") fun observeAll(): Flow<List<BucketEntity>>
+    @Insert suspend fun insert(bucket: BucketEntity): Long
+    @Query("DELETE FROM buckets WHERE id = :id") suspend fun deleteById(id: Long): Int
+    @Query("SELECT EXISTS(SELECT 1 FROM bucket_allocations WHERE bucketId = :id)") suspend fun hasAllocations(id: Long): Boolean
+}
+@Dao interface BucketPlanDao {
+    @Query("SELECT * FROM bucket_plan ORDER BY sortOrder, id") fun observeAll(): Flow<List<BucketPlanEntity>>
+    @Insert suspend fun insert(entry: BucketPlanEntity): Long
+    @Query("DELETE FROM bucket_plan WHERE bucketId = :bucketId") suspend fun deleteForBucket(bucketId: Long): Int
+}
+@Dao interface BucketAllocationDao {
+    @Insert suspend fun insert(allocation: BucketAllocationEntity): Long
+    @Query("SELECT EXISTS(SELECT 1 FROM bucket_allocations WHERE sourceTransactionId = :id)") suspend fun existsForSource(id: Long): Boolean
+    @Query("DELETE FROM bucket_allocations WHERE id IN (:ids)") suspend fun deleteIds(ids: List<Long>): Int
+    @Query("SELECT * FROM bucket_allocations WHERE month = :month") fun observeMonth(month: String): Flow<List<BucketAllocationEntity>>
 }
 
 @Dao

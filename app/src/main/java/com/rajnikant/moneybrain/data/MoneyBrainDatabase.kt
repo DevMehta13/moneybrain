@@ -15,8 +15,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MerchantRuleEntity::class,
         ActionEntity::class,
         UnparsedSmsEntity::class,
+        BucketEntity::class, BucketPlanEntity::class, BucketAllocationEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class MoneyBrainDatabase : RoomDatabase() {
@@ -26,15 +27,29 @@ abstract class MoneyBrainDatabase : RoomDatabase() {
     abstract fun merchantRuleDao(): MerchantRuleDao
     abstract fun actionDao(): ActionDao
     abstract fun unparsedSmsDao(): UnparsedSmsDao
+    abstract fun bucketDao(): BucketDao
+    abstract fun bucketPlanDao(): BucketPlanDao
+    abstract fun bucketAllocationDao(): BucketAllocationDao
 
     companion object {
         fun create(context: Context): MoneyBrainDatabase = Room.databaseBuilder(
             context,
             MoneyBrainDatabase::class.java,
             "money-brain.db",
-        ).addMigrations(MIGRATION_1_2).addCallback(SeedCallback()).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).addCallback(SeedCallback()).build()
     }
 }
+
+private val MIGRATION_2_3 = object : Migration(2, 3) { override fun migrate(db: SupportSQLiteDatabase) {
+    db.execSQL("CREATE TABLE IF NOT EXISTS buckets (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, sortOrder INTEGER NOT NULL, createdAt INTEGER NOT NULL)")
+    db.execSQL("CREATE TABLE IF NOT EXISTS bucket_plan (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, bucketId INTEGER NOT NULL REFERENCES buckets(id) ON DELETE CASCADE, kind TEXT NOT NULL, value INTEGER NOT NULL, sortOrder INTEGER NOT NULL)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS index_bucket_plan_bucketId ON bucket_plan(bucketId)")
+    db.execSQL("CREATE TABLE IF NOT EXISTS bucket_allocations (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, bucketId INTEGER NOT NULL REFERENCES buckets(id) ON DELETE RESTRICT, month TEXT NOT NULL, amountPaise INTEGER NOT NULL, sourceTransactionId INTEGER, createdAt INTEGER NOT NULL)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS index_bucket_allocations_month_bucketId ON bucket_allocations(month, bucketId)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS index_bucket_allocations_sourceTransactionId ON bucket_allocations(sourceTransactionId)")
+    db.execSQL("ALTER TABLE categories ADD COLUMN bucketId INTEGER")
+    db.execSQL("ALTER TABLE transactions ADD COLUMN bucketId INTEGER")
+} }
 
 private val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {

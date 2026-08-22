@@ -19,6 +19,7 @@ data class CategoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val sortOrder: Int,
+    val bucketId: Long? = null,
 )
 
 @Entity(
@@ -57,7 +58,17 @@ data class TransactionEntity(
     val fingerprint: String? = null,
     val referenceNo: String? = null,
     val createdAt: Long,
+    val bucketId: Long? = null,
 )
+
+@Entity(tableName = "buckets")
+data class BucketEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String, val sortOrder: Int, val createdAt: Long)
+
+@Entity(tableName = "bucket_plan", foreignKeys = [ForeignKey(entity = BucketEntity::class, parentColumns = ["id"], childColumns = ["bucketId"], onDelete = ForeignKey.CASCADE)], indices = [Index(value = ["bucketId"])])
+data class BucketPlanEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val bucketId: Long, val kind: String, val value: Long, val sortOrder: Int)
+
+@Entity(tableName = "bucket_allocations", foreignKeys = [ForeignKey(entity = BucketEntity::class, parentColumns = ["id"], childColumns = ["bucketId"], onDelete = ForeignKey.RESTRICT)], indices = [Index(value = ["month", "bucketId"]), Index(value = ["sourceTransactionId"])])
+data class BucketAllocationEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val bucketId: Long, val month: String, val amountPaise: Long, val sourceTransactionId: Long?, val createdAt: Long)
 
 @Entity(
     tableName = "merchant_rules",
