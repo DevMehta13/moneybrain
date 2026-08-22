@@ -1,0 +1,15 @@
+# Android / Gradle (populated when the project skeleton lands in phase 0)
+.gradle/
+build/
+local.properties
+.idea/
+*.keystore
+*.jks
+captures/
+
+# OS noise
+.DS_Store
+
+# Never commit anything personal: masked-SMS staging, tokens, exports
+private/
+*.secret
