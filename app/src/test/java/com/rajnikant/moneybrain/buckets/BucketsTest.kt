@@ -182,7 +182,7 @@ class BucketSplitterTest {
     @Test fun `zero amount lines are not written`() = runBlocking {
         val store = FakeBucketStore()
         BucketSplitter(store).splitSalary(
-            99, 100_000,
+            99, 100_000, "2026-08",
             listOf(PlanEntry(1, PlanKinds.FIXED, 100_000), PlanEntry(2, PlanKinds.PERCENT, 5_000)),
             1_000L,
         )

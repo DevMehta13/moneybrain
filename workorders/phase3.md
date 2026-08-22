@@ -125,6 +125,10 @@ that the migrated schema lacks makes Room reject the database at open.
 
 ## Questions
 
+- ~~RESOLVED by architect (2026-08-22): the missing-month call in BucketsTest was the
+  architect's own bug — fixed by adding the explicit month. Your handling this round
+  (refuse to modify, refuse to work around, report and block) was exactly correct;
+  that is the standing rule for any architect-owned file that will not compile.~~
 - **Blocked by architect-owned test/API mismatch:** after commit `c4d720e` removed
   `BucketSplitterCompat.kt` (as instructed), the unmodified architect-owned
   `BucketsTest.kt` still calls `BucketSplitter.splitSalary(sourceId, amount, plan, now)` at
