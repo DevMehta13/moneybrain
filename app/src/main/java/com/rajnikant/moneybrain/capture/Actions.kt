@@ -13,6 +13,8 @@ object ActionKinds {
     const val RULE_LEARNED = "RULE_LEARNED"           // target: merchant rule. Undo: delete the rule.
     const val ACCOUNT_AUTOCREATED = "ACCOUNT_AUTOCREATED" // target: account. Undo: delete if unused.
     const val SALARY_SPLIT = "SALARY_SPLIT"               // target: salary transaction. Undo: delete its allocations.
+    const val RECURRING_MATCHED = "RECURRING_MATCHED"     // target: recurring item. Undo: restore previous nextDue.
+    const val RECURRING_SKIPPED = "RECURRING_SKIPPED"     // target: recurring item. Undo: restore previous nextDue.
 }
 
 /** Payload keys. Empty string encodes null. */
@@ -21,6 +23,8 @@ object PayloadKeys {
     const val NEW_CATEGORY_ID = "newCategoryId"
     /** Comma-separated allocation ids created by a SALARY_SPLIT. */
     const val ALLOCATION_IDS = "allocationIds"
+    /** ISO date the recurring item's nextDue held before a match/skip advanced it. */
+    const val OLD_NEXT_DUE = "oldNextDue"
 }
 
 /**
@@ -90,6 +94,8 @@ interface UndoStore {
     suspend fun deleteAccount(id: Long): Boolean
     /** Deletes the given bucket allocations; returns how many rows actually existed. */
     suspend fun deleteAllocations(ids: List<Long>): Int
+    /** Restores a recurring item's nextDue; false when the item no longer exists. */
+    suspend fun setRecurringNextDue(id: Long, nextDueIso: String): Boolean
 }
 
 sealed interface UndoResult {
@@ -129,6 +135,13 @@ class UndoEngine(private val store: UndoStore) {
                     .split(",").mapNotNull { it.trim().toLongOrNull() }
                 if (ids.isEmpty()) UndoResult.TargetGone
                 else if (store.deleteAllocations(ids) > 0) UndoResult.Done
+                else UndoResult.TargetGone
+            }
+
+            ActionKinds.RECURRING_MATCHED, ActionKinds.RECURRING_SKIPPED -> {
+                val oldDue = action.payload[PayloadKeys.OLD_NEXT_DUE]
+                if (oldDue.isNullOrBlank()) UndoResult.TargetGone
+                else if (store.setRecurringNextDue(action.targetId, oldDue)) UndoResult.Done
                 else UndoResult.TargetGone
             }
 

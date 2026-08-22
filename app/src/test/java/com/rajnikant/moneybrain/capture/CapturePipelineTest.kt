@@ -75,6 +75,9 @@ private class FakeStore : CaptureStore, UndoStore, RuleStore {
     val allocations = mutableMapOf<Long, Long>() // allocationId -> bucketId (enough for undo tests)
     override suspend fun deleteAllocations(ids: List<Long>): Int =
         ids.count { allocations.remove(it) != null }
+    val recurringDues = mutableMapOf<Long, String>()
+    override suspend fun setRecurringNextDue(id: Long, nextDueIso: String): Boolean =
+        if (recurringDues.containsKey(id)) { recurringDues[id] = nextDueIso; true } else false
 
     fun actionsOfKind(kind: String) = actions.values.filter { it.kind == kind }
 }
