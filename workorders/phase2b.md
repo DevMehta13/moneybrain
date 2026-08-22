@@ -1,6 +1,6 @@
 # Work order: Phase 2, Stage B — live capture, rules, activity log with undo
 
-Status: OPEN
+Status: DONE — gate passed 2026-08-22 (live capture verified on device after receiver fix; architect review + owner manual checks)
 Phase reference: PLAN.md → Phase 2 (final stage)
 
 ## Goal
@@ -125,13 +125,13 @@ captured and manual entries are distinguishable.
 
 ## Acceptance (architect + owner checks follow)
 
-- [ ] Migration runs on a live phase 1 install without data loss; app version 2 schema exported.
-- [ ] A real bank SMS creates exactly one transaction within seconds, visible in Timeline.
-- [ ] The same event never duplicates (fingerprint IGNORE path exercised).
-- [ ] Activity tab lists the capture with working undo (confirm dialog for captures).
-- [ ] A category correction creates a rule; the next capture of that merchant is categorised.
-- [ ] Unparsed bank SMS appear masked under Needs attention; dismiss works.
-- [ ] All architect-owned tests pass unmodified.
+- [x] Migration runs on a live phase 1 install without data loss; app version 2 schema exported.
+- [x] A real bank SMS creates exactly one transaction within seconds, visible in Timeline.
+- [x] The same event never duplicates (fingerprint IGNORE path exercised).
+- [x] Activity tab lists the capture with working undo (confirm dialog for captures).
+- [x] A category correction creates a rule; the next capture of that merchant is categorised.
+- [x] Unparsed bank SMS appear masked under Needs attention; dismiss works.
+- [x] All architect-owned tests pass unmodified.
 
 ## Questions
 
