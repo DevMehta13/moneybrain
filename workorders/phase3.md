@@ -165,3 +165,7 @@ Do not re-add convenience overloads to architect-owned APIs.
   transaction's `occurredAt` in the device timezone to derive the explicit allocation month;
   it never defaults a late split to today's month. Further validation is blocked by the
   architect-owned test/API mismatch recorded above.
+- Continued implementation: Settings now includes Categories & buckets with a persisted
+  bucket-or-None picker for every category. The transaction editor now persists a bucket
+  override and exposes From category plus each bucket as choices. Tests and debug build pass;
+  the APK was installed over the existing phone app without uninstalling.

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
 import com.rajnikant.moneybrain.buckets.PlanKinds
 import com.rajnikant.moneybrain.buckets.PlanEntry
+import com.rajnikant.moneybrain.money.Money
 import com.rajnikant.moneybrain.buckets.BucketSplitter
 import com.rajnikant.moneybrain.data.RoomBucketStore
 import com.rajnikant.moneybrain.data.BucketEntity
@@ -29,6 +30,8 @@ class BucketsViewModel(private val db: MoneyBrainDatabase) : ViewModel() {
     }
     fun addBucket(name: String) = viewModelScope.launch { if (name.isNotBlank()) db.bucketDao().insert(BucketEntity(name = name.trim(), sortOrder = System.currentTimeMillis().toInt(), createdAt = System.currentTimeMillis())) }
     fun addPercent(bucketId: Long, percent: Long) = viewModelScope.launch { db.bucketPlanDao().insert(BucketPlanEntity(bucketId = bucketId, kind = PlanKinds.PERCENT, value = percent * 100, sortOrder = System.currentTimeMillis().toInt())) }
+    fun addFixed(bucketId: Long, text: String) = viewModelScope.launch { Money.parseToPaise(text)?.let { db.bucketPlanDao().insert(BucketPlanEntity(bucketId = bucketId, kind = PlanKinds.FIXED, value = it, sortOrder = System.currentTimeMillis().toInt())) } }
+    fun deleteBucket(id: Long) = viewModelScope.launch { if (!db.bucketDao().hasAllocations(id)) db.bucketDao().deleteById(id) }
     fun splitSalary(id: Long, amount: Long, occurredAt: Long) = viewModelScope.launch {
         val month = YearMonth.from(Instant.ofEpochMilli(occurredAt).atZone(ZoneId.systemDefault())).toString()
         db.withTransaction { BucketSplitter(RoomBucketStore(db)).splitSalary(id, amount, month, db.bucketPlanDao().observeAll().first().map { PlanEntry(it.bucketId, it.kind, it.value) }, System.currentTimeMillis()) }

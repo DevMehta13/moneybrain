@@ -83,6 +83,7 @@ data class TransactionEditorState(
     val direction: String = "OUT",
     val accountId: Long? = null,
     val categoryId: Long? = null,
+    val bucketId: Long? = null,
     val merchant: String = "",
     val notes: String = "",
     val dateTime: String = formatDateTime(System.currentTimeMillis()),
@@ -111,6 +112,7 @@ class TransactionEditorViewModel(
 ) : ViewModel() {
     val accounts = accountDao.observeAll()
     val categories = categoryDao.observeAll()
+    val buckets = database.bucketDao().observeAll()
     var state by mutableStateOf(TransactionEditorState())
         private set
 
@@ -128,6 +130,7 @@ class TransactionEditorViewModel(
                         direction = transaction.direction,
                         accountId = transaction.accountId,
                         categoryId = transaction.categoryId,
+                        bucketId = transaction.bucketId,
                         merchant = transaction.merchant.orEmpty(),
                         notes = transaction.notes.orEmpty(),
                         dateTime = formatDateTime(transaction.occurredAt),
@@ -168,6 +171,7 @@ class TransactionEditorViewModel(
                 fingerprint = previous?.fingerprint,
                 referenceNo = previous?.referenceNo,
                 createdAt = previous?.createdAt ?: System.currentTimeMillis(),
+                bucketId = state.bucketId,
             )
             database.withTransaction {
                 if (previous == null) {

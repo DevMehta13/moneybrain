@@ -94,6 +94,7 @@ private const val activityRoute = "activity"
 private const val bucketsRoute = "buckets"
 private const val accountsRoute = "accounts"
 private const val captureRoute = "capture"
+private const val categoryBucketsRoute = "categoryBuckets"
 private const val addRoute = "add"
 private const val editRoute = "edit/{transactionId}"
 
@@ -141,8 +142,10 @@ fun MoneyBrainScreen() {
                 SettingsScreen(
                     onAccounts = { navController.navigate(accountsRoute) },
                     onCapture = { navController.navigate(captureRoute) },
+                    onCategoryBuckets = { navController.navigate(categoryBucketsRoute) },
                 )
             }
+            composable(categoryBucketsRoute) { CategoryBucketsScreen(database, onBack = { navController.popBackStack() }) }
             composable(activityRoute) {
                 val viewModel: ActivityViewModel = viewModel(factory = factory)
                 ActivityScreen(viewModel, onAddManually = { navController.navigate(addRoute) })
@@ -413,6 +416,7 @@ private fun TransactionEditorScreen(
 ) {
     val accounts by viewModel.accounts.collectAsState(initial = emptyList())
     val categories by viewModel.categories.collectAsState(initial = emptyList())
+    val buckets by viewModel.buckets.collectAsState(initial = emptyList())
     val state = viewModel.state
     val focusRequester = remember { FocusRequester() }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -468,6 +472,7 @@ private fun TransactionEditorScreen(
                 viewModel.update { copy(accountId = accountId) }
             }
         }
+        item { BucketPicker(buckets, state.bucketId) { id -> viewModel.update { copy(bucketId = id) } } }
         item {
             OutlinedTextField(
                 value = state.merchant,
@@ -526,6 +531,19 @@ private fun TransactionEditorScreen(
 }
 
 @Composable
+private fun BucketPicker(buckets: List<com.rajnikant.moneybrain.data.BucketEntity>, selectedId: Long?, onSelect: (Long?) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Column {
+        Text("Bucket override", style = MaterialTheme.typography.labelLarge)
+        Button(onClick = { expanded = true }) { Text(buckets.firstOrNull { it.id == selectedId }?.name ?: "From category") }
+        androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            androidx.compose.material3.DropdownMenuItem(text = { Text("From category") }, onClick = { onSelect(null); expanded = false })
+            buckets.forEach { bucket -> androidx.compose.material3.DropdownMenuItem(text = { Text(bucket.name) }, onClick = { onSelect(bucket.id); expanded = false }) }
+        }
+    }
+}
+
+@Composable
 private fun DirectionPicker(direction: String, onDirection: (String) -> Unit) {
     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         listOf("OUT", "IN").forEachIndexed { index, option ->
@@ -579,7 +597,7 @@ private fun CategoryPicker(
 }
 
 @Composable
-private fun SettingsScreen(onAccounts: () -> Unit, onCapture: () -> Unit) {
+private fun SettingsScreen(onAccounts: () -> Unit, onCapture: () -> Unit, onCategoryBuckets: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
@@ -595,6 +613,30 @@ private fun SettingsScreen(onAccounts: () -> Unit, onCapture: () -> Unit) {
                 Text("SMS capture (setup)", style = MaterialTheme.typography.titleMedium)
                 Text("Review masked bank SMS samples")
             }
+        }
+        Spacer(Modifier.height(12.dp))
+        Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onCategoryBuckets)) {
+            Column(modifier = Modifier.padding(16.dp)) { Text("Categories & buckets", style = MaterialTheme.typography.titleMedium); Text("Choose which bucket each category drains") }
+        }
+    }
+}
+
+@Composable
+private fun CategoryBucketsScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDatabase, onBack: () -> Unit) {
+    val categories by database.categoryDao().observeAll().collectAsState(initial = emptyList())
+    val buckets by database.bucketDao().observeAll().collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { TextButton(onClick = onBack) { Text("Back") }; Text("Categories & buckets", style = MaterialTheme.typography.headlineSmall) }
+        items(categories, key = { it.id }) { category ->
+            var expanded by remember { mutableStateOf(false) }
+            Card { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(category.name); Button(onClick = { expanded = true }) { Text(buckets.firstOrNull { it.id == category.bucketId }?.name ?: "None") }
+                androidx.compose.material3.DropdownMenu(expanded, { expanded = false }) {
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("None") }, onClick = { scope.launch { database.categoryDao().update(category.copy(bucketId = null)) }; expanded = false })
+                    buckets.forEach { bucket -> androidx.compose.material3.DropdownMenuItem(text = { Text(bucket.name) }, onClick = { scope.launch { database.categoryDao().update(category.copy(bucketId = bucket.id)) }; expanded = false }) }
+                }
+            } }
         }
     }
 }
