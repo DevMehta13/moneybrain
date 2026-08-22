@@ -34,6 +34,8 @@ not a developer — never rely on him to relay technical details.
   explicitly provides pre-masked samples, no phone numbers, no account digits, no tokens,
   no keystores, no `local.properties`. When in doubt, gitignore it.
 - **Do not force-push. Do not rewrite history. Do not amend commits already pushed.**
+- **Commits carry Rajnikant's name only** — no AI co-author trailers (no "Co-Authored-By" /
+  "Generated with" lines) in any commit message.
 - Files marked `// ARCHITECT-OWNED` in their header are written by the architect:
   integrate and call them, fix imports if needed, but do not alter their logic.
   If one won't compile, report it in Result rather than "fixing" the logic.
