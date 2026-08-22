@@ -411,3 +411,4 @@ Plan changes are recorded here, never made silently.
 |---|---|---|
 | 2026-08-22 | Plan created. | — |
 | 2026-08-22 | Two-machine workflow adopted: Claude architects/reviews on the borrowed Mac (no heavy installs there), Codex implements/builds on Rajnikant's laptop, GitHub as the shared medium. Phase 0 amended accordingly; `AGENTS.md` + `workorders/` added. | Borrowed Mac has no disk space for the Android toolchain and shouldn't be modified; Rajnikant's own laptop has Codex and manageable space. |
+| 2026-08-23 | Phases 8–9 (cloud mirror + ChatGPT) parked indefinitely by owner decision; phase 10 also on hold. After phase 7 the owner decides what happens next. Phase 7 runs in two stages (A: notification harvest, B: templates + merge), mirroring phase 2's approach. | Owner doesn't want the ChatGPT configuration now; until any backup path exists, note that all data lives on the phone only. |
