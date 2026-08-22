@@ -36,6 +36,32 @@ object BankTemplates {
             ),
         ),
 
+        // HDFC UPI credit, multi-line:
+        // "Credit Alert!\nRs.271.00 credited to HDFC Bank A/c 123456 on 20-07-26
+        //  from VPA faasos.payu@indus (UPI 520199887766)"
+        SmsTemplate(
+            id = "hdfc-upi-credit-1",
+            bank = "HDFC",
+            direction = "IN",
+            regex = Regex(
+                """(?i)Credit\s+Alert!\s*\r?\n?\s*(?<amount>Rs\.?\s?[\d,]+(?:\.\d{1,2})?)\s+credited\s+to\s+HDFC\s+Bank\s+A/c\s+(?<account>\w+)\s+on\s+\d{1,2}-\d{1,2}-\d{2,4}\s+from\s+VPA\s+(?<merchant>\S+)\s+\(UPI\s*(?<ref>\w+)\)"""
+            ),
+        ),
+
+        // HDFC NEFT deposit (salary arrives this way), single line:
+        // "Update! INR 80,757.00 deposited in HDFC Bank A/c 123456 on 24-JUL-26 for
+        //  NEFT Cr-<bank>-Salary for <MON> <employer>-<name>-<ref>.Avl bal INR …"
+        // The whole "for …" narrative becomes the merchant — phase 3 salary detection
+        // keys off "Salary" appearing in it. No separate ref group (embedded in narrative).
+        SmsTemplate(
+            id = "hdfc-neft-credit-1",
+            bank = "HDFC",
+            direction = "IN",
+            regex = Regex(
+                """(?i)Update!\s+(?<amount>(?:Rs\.?|INR)\s?[\d,]+(?:\.\d{1,2})?)\s+deposited\s+in\s+HDFC\s+Bank\s+A/c\s+(?<account>\w+)\s+on\s+\S+\s+for\s+(?<merchant>.+?)\s*\.?\s*Avl\s+bal"""
+            ),
+        ),
+
         // Bank of Baroda UPI credit, single line:
         // "…credited with INR 3400.00 on <timestamp> by UPI Ref No <digits>; AvlBal:…"
         // No merchant information in this format.

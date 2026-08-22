@@ -87,6 +87,70 @@ class BankTemplatesTest {
         assertNull(SmsParser.parse("AX-HDFCBK-S", body))
     }
 
+    // --- HDFC UPI credit ("Credit Alert!") ---
+
+    @Test fun `hdfc upi credit parses as income`() {
+        val body = "Credit Alert!\nRs.271.00 credited to HDFC Bank A/c 123456 on 20-07-26 " +
+            "from VPA faasos.payu@indus (UPI 520199887766)"
+        val p = SmsParser.parse("AD-HDFCBK-S", body)
+        assertEquals(27_100L, p?.amountPaise)
+        assertEquals("IN", p?.direction)
+        assertEquals("faasos.payu@indus", p?.merchant)
+        assertEquals("123456", p?.accountHint)
+        assertEquals("520199887766", p?.referenceNo)
+        assertEquals("hdfc-upi-credit-1", p?.templateId)
+    }
+
+    @Test fun `hdfc one paisa credit parses`() {
+        val body = "Credit Alert!\nRs.0.01 credited to HDFC Bank A/c 123456 on 27-07-26 " +
+            "from VPA growwpd@hdfcbank (UPI 520100200300)"
+        assertEquals(1L, SmsParser.parse("AD-HDFCBK-S", body)?.amountPaise)
+    }
+
+    // --- HDFC NEFT deposit (salary format; fictional employer/name — real repo is public) ---
+
+    @Test fun `hdfc neft salary deposit parses as income`() {
+        val body = "Update! INR 80,757.00 deposited in HDFC Bank A/c 123456 on 24-JUL-26 for " +
+            "NEFT Cr-CHAS0INBX01-Salary for JUL 2026 ACME SYSTEMS (INDIA) PRIVATE -First Last-" +
+            "CHASH1234567890.Avl bal INR 1,31,526.24. Cheque deposits in A/C are subject to clearing"
+        val p = SmsParser.parse("VD-HDFCBK-S", body)
+        assertEquals(8_075_700L, p?.amountPaise)
+        assertEquals("IN", p?.direction)
+        assertEquals("123456", p?.accountHint)
+        assertEquals("hdfc-neft-credit-1", p?.templateId)
+        assertEquals(true, p?.merchant?.contains("Salary"))
+        assertNull(p?.referenceNo)
+    }
+
+    // --- non-transactional messages that must stay unrecognised ---
+
+    @Test fun `hdfc otp does not parse`() =
+        assertNull(
+            SmsParser.parse(
+                "JM-HDFCBK-T",
+                "482910 is SECRET OTP (One Time Password) to link your HDFC Bank Account(s) " +
+                    "on Saafe Account Aggregator.Never share OTP for with anyone.",
+            ),
+        )
+
+    @Test fun `bob mandate created does not parse`() =
+        assertNull(
+            SmsParser.parse(
+                "JK-BOBSMS-S",
+                "You have successfully created a mandate on SPOTIFY INDIA PVT LTD for a frequency " +
+                    "of ASPRESENTED starting from 2026-06-25 12:00:00 AM for amount 139.00 -BOB",
+            ),
+        )
+
+    @Test fun `bob mandate revoked does not parse`() =
+        assertNull(
+            SmsParser.parse(
+                "JK-BOBSMS-S",
+                "You have successfully revoked a mandate on JioHotstar for a frequency " +
+                    "of ASPRESENTED starting from 2026-06-21 12:00:00 AM for amount 349.00 -BOB",
+            ),
+        )
+
     // --- Bank of Baroda UPI debit (single line) ---
 
     private val bobDebit = "Rs.60.00 Dr. from A/C 1234567890 and Cr. to crazzyproduct@axl. " +
