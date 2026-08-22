@@ -72,6 +72,9 @@ private class FakeStore : CaptureStore, UndoStore, RuleStore {
     override suspend fun accountHasTransactions(id: Long): Boolean =
         transactions.values.any { it.accountId == id }
     override suspend fun deleteAccount(id: Long): Boolean = accounts.remove(id) != null
+    val allocations = mutableMapOf<Long, Long>() // allocationId -> bucketId (enough for undo tests)
+    override suspend fun deleteAllocations(ids: List<Long>): Int =
+        ids.count { allocations.remove(it) != null }
 
     fun actionsOfKind(kind: String) = actions.values.filter { it.kind == kind }
 }

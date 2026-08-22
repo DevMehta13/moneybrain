@@ -12,12 +12,15 @@ object ActionKinds {
     const val AUTO_CATEGORISED = "AUTO_CATEGORISED"   // target: transaction. Undo: restore old category.
     const val RULE_LEARNED = "RULE_LEARNED"           // target: merchant rule. Undo: delete the rule.
     const val ACCOUNT_AUTOCREATED = "ACCOUNT_AUTOCREATED" // target: account. Undo: delete if unused.
+    const val SALARY_SPLIT = "SALARY_SPLIT"               // target: salary transaction. Undo: delete its allocations.
 }
 
-/** Payload keys used by AUTO_CATEGORISED. Empty string encodes null. */
+/** Payload keys. Empty string encodes null. */
 object PayloadKeys {
     const val OLD_CATEGORY_ID = "oldCategoryId"
     const val NEW_CATEGORY_ID = "newCategoryId"
+    /** Comma-separated allocation ids created by a SALARY_SPLIT. */
+    const val ALLOCATION_IDS = "allocationIds"
 }
 
 /**
@@ -85,6 +88,8 @@ interface UndoStore {
     suspend fun deleteRule(id: Long): Boolean
     suspend fun accountHasTransactions(id: Long): Boolean
     suspend fun deleteAccount(id: Long): Boolean
+    /** Deletes the given bucket allocations; returns how many rows actually existed. */
+    suspend fun deleteAllocations(ids: List<Long>): Int
 }
 
 sealed interface UndoResult {
@@ -118,6 +123,14 @@ class UndoEngine(private val store: UndoStore) {
 
             ActionKinds.RULE_LEARNED ->
                 if (store.deleteRule(action.targetId)) UndoResult.Done else UndoResult.TargetGone
+
+            ActionKinds.SALARY_SPLIT -> {
+                val ids = action.payload[PayloadKeys.ALLOCATION_IDS].orEmpty()
+                    .split(",").mapNotNull { it.trim().toLongOrNull() }
+                if (ids.isEmpty()) UndoResult.TargetGone
+                else if (store.deleteAllocations(ids) > 0) UndoResult.Done
+                else UndoResult.TargetGone
+            }
 
             ActionKinds.ACCOUNT_AUTOCREATED ->
                 if (store.accountHasTransactions(action.targetId)) {
