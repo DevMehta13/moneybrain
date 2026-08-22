@@ -111,6 +111,7 @@ interface CategoryDao {
     @Insert suspend fun insert(entry: BucketEntryEntity): Long
     @Query("UPDATE bucket_entries SET counterpartEntryId = :counterpartId WHERE id = :id") suspend fun setCounterpart(id: Long, counterpartId: Long)
     @Query("SELECT EXISTS(SELECT 1 FROM bucket_entries WHERE sourceTransactionId = :id)") suspend fun existsForSource(id: Long): Boolean
+    @Query("SELECT EXISTS(SELECT 1 FROM bucket_entries WHERE sourceTransactionId = :id)") fun observeExistsForSource(id: Long): Flow<Boolean>
     @Query("SELECT * FROM bucket_entries ORDER BY createdAt DESC, id DESC") fun observeAll(): Flow<List<BucketEntryEntity>>
     @Query("SELECT * FROM bucket_entries WHERE bucketId = :bucketId ORDER BY createdAt DESC, id DESC") fun observeForBucket(bucketId: Long): Flow<List<BucketEntryEntity>>
     @Query("SELECT counterpartEntryId FROM bucket_entries WHERE id IN (:ids) AND counterpartEntryId IS NOT NULL") suspend fun counterpartsFor(ids: List<Long>): List<Long>

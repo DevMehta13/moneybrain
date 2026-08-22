@@ -12,6 +12,7 @@ import com.rajnikant.moneybrain.buckets.BucketSplitter
 import com.rajnikant.moneybrain.data.RoomBucketStore
 import com.rajnikant.moneybrain.data.BucketEntity
 import com.rajnikant.moneybrain.data.BucketPlanEntity
+import com.rajnikant.moneybrain.data.SplitDismissedEntity
 import com.rajnikant.moneybrain.data.MoneyBrainDatabase
 import com.rajnikant.moneybrain.summary.BucketStatus
 import com.rajnikant.moneybrain.summary.bucketStatuses
@@ -29,6 +30,12 @@ class BucketsViewModel(private val db: MoneyBrainDatabase) : ViewModel() {
     val buckets = db.bucketDao().observeAll()
     val plans = db.bucketPlanDao().observeAll()
     val entries = db.bucketEntryDao().observeAll()
+    val transactions = db.transactionDao().observeAll()
+    val categories = db.categoryDao().observeAll()
+    val recurring = db.recurringDao().observeAll()
+    val accounts = db.accountDao().observeAll()
+    val snapshots = db.balanceSnapshotDao().observeAll()
+    val dismissedSplits = db.splitDismissedDao().observeAll()
     val status = combine(buckets, entries, db.transactionDao().observeAll(), db.categoryDao().observeAll(), db.recurringDao().observeAll()) { bs, ledger, txs, categories, recurring -> bucketStatuses(bs, ledger, txs, categories, recurring, java.time.YearMonth.now().toString()) }
     private val _messages = Channel<BucketMessage>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
@@ -83,4 +90,7 @@ class BucketsViewModel(private val db: MoneyBrainDatabase) : ViewModel() {
     fun adjust(bucketId: Long, signedAmount: Long, note: String?) = viewModelScope.launch { db.withTransaction { BucketSplitter(RoomBucketStore(db)).adjust(bucketId, signedAmount, note, System.currentTimeMillis()) } }
     fun move(fromBucketId: Long, toBucketId: Long, amount: Long) = viewModelScope.launch { db.withTransaction { BucketSplitter(RoomBucketStore(db)).move(fromBucketId, toBucketId, amount, System.currentTimeMillis()) } }
     fun deleteEntry(id: Long) = viewModelScope.launch { db.withTransaction { val dao = db.bucketEntryDao(); dao.deleteIds((listOf(id) + dao.counterpartsFor(listOf(id))).distinct()) } }
+    fun dismissSplit(transactionId: Long) = viewModelScope.launch {
+        db.splitDismissedDao().insert(SplitDismissedEntity(transactionId, System.currentTimeMillis()))
+    }
 }

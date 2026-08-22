@@ -22,6 +22,9 @@ import com.rajnikant.moneybrain.money.Money
 import com.rajnikant.moneybrain.people.LedgerKinds
 import com.rajnikant.moneybrain.people.SplitMath
 import com.rajnikant.moneybrain.recurring.applyRecurringMatch
+import com.rajnikant.moneybrain.buckets.BucketSplitter
+import com.rajnikant.moneybrain.buckets.SplitLine
+import com.rajnikant.moneybrain.data.RoomBucketStore
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -140,6 +143,8 @@ class TransactionEditorViewModel(
     val buckets = database.bucketDao().observeAll()
     val people = database.personDao().observeAll()
     val trips = database.tripDao().observeAll()
+    val plans = database.bucketPlanDao().observeAll()
+    val sourceAlreadySplit = transactionId?.let { database.bucketEntryDao().observeExistsForSource(it) }
     var state by mutableStateOf(TransactionEditorState())
         private set
 
@@ -273,6 +278,15 @@ class TransactionEditorViewModel(
         viewModelScope.launch {
             transactionDao.delete(transaction)
             _finished.send(Unit)
+        }
+    }
+
+    fun applyBucketSplit(lines: List<SplitLine>) {
+        val source = existingTransaction ?: return
+        viewModelScope.launch {
+            database.withTransaction {
+                BucketSplitter(RoomBucketStore(database)).applySplit(source.id, source.amountPaise, lines, System.currentTimeMillis())
+            }
         }
     }
 }

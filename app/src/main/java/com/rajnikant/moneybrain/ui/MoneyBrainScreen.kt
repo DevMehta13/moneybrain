@@ -82,6 +82,10 @@ import com.rajnikant.moneybrain.viewmodel.BucketsViewModel
 import com.rajnikant.moneybrain.viewmodel.BucketMessage
 import com.rajnikant.moneybrain.buckets.BucketMath
 import com.rajnikant.moneybrain.buckets.PlanEntry
+import com.rajnikant.moneybrain.buckets.SplitLine
+import com.rajnikant.moneybrain.buckets.SplitValidation
+import com.rajnikant.moneybrain.buckets.BucketLedger
+import com.rajnikant.moneybrain.buckets.SalaryDetector
 import com.rajnikant.moneybrain.data.RecurringEntity
 import com.rajnikant.moneybrain.recurring.Cadences
 import com.rajnikant.moneybrain.recurring.RecurringMath
@@ -118,6 +122,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 
 private const val timelineRoute = "timeline"
 private const val overviewRoute = "overview"
@@ -302,8 +307,27 @@ private fun OverviewScreen(database: com.rajnikant.moneybrain.data.MoneyBrainDat
 private fun BucketsScreen(viewModel: BucketsViewModel) {
     val statuses by viewModel.status.collectAsState(initial = emptyList())
     val plans by viewModel.plans.collectAsState(initial = emptyList())
+    val entries by viewModel.entries.collectAsState(initial = emptyList())
+    val transactions by viewModel.transactions.collectAsState(initial = emptyList())
+    val accounts by viewModel.accounts.collectAsState(initial = emptyList())
+    val snapshots by viewModel.snapshots.collectAsState(initial = emptyList())
+    val dismissedSplits by viewModel.dismissedSplits.collectAsState(initial = emptyList())
+    val moneyMap = moneyMap(accounts, snapshots, transactions, statuses)
     val snackbarHostState = remember { SnackbarHostState() }
     var name by remember { mutableStateOf("") }
+    var splitSource by remember { mutableStateOf<TransactionEntity?>(null) }
+    var unallocatedSplitAmount by remember { mutableStateOf<Long?>(null) }
+    var showAmountSplit by remember { mutableStateOf(false) }
+    var splitAmountText by remember { mutableStateOf("") }
+    var adjustmentBucket by remember { mutableStateOf<com.rajnikant.moneybrain.summary.BucketStatus?>(null) }
+    var moveFrom by remember { mutableStateOf<com.rajnikant.moneybrain.summary.BucketStatus?>(null) }
+    var historyBucket by remember { mutableStateOf<com.rajnikant.moneybrain.summary.BucketStatus?>(null) }
+    val planEntries = plans.map { PlanEntry(it.bucketId, it.kind, it.value) }
+    val splitCandidates = transactions.filter { transaction ->
+        transaction.direction == "IN" && transaction.occurredAt >= System.currentTimeMillis() - 14L * 24 * 60 * 60 * 1000 &&
+            SalaryDetector.looksLikeSalary(transaction.direction, transaction.merchant) &&
+            entries.none { it.sourceTransactionId == transaction.id } && dismissedSplits.none { it.transactionId == transaction.id }
+    }
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { message ->
             snackbarHostState.showSnackbar((message as BucketMessage.Text).value)
@@ -312,9 +336,17 @@ private fun BucketsScreen(viewModel: BucketsViewModel) {
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(innerPadding), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Buckets", style = MaterialTheme.typography.headlineSmall) }
+            item { MoneyMapCard(moneyMap, accounts, statuses) }
+            if (splitCandidates.isNotEmpty()) item { Text("Split this?", style = MaterialTheme.typography.titleMedium) }
+            items(splitCandidates, key = { "split-${it.id}" }) { transaction ->
+                Card { Column(Modifier.padding(12.dp)) {
+                    Text("${transaction.merchant ?: "Credit"} · ${Money.formatPaise(transaction.amountPaise)}")
+                    Row { TextButton(onClick = { splitSource = transaction }) { Text("Split…") }; TextButton(onClick = { viewModel.dismissSplit(transaction.id) }) { Text("Skip") } }
+                } }
+            }
+            item { Button(onClick = { showAmountSplit = true }, modifier = Modifier.fillMaxWidth()) { Text("Split an amount") } }
             item { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("New bucket") }); Button(onClick = { viewModel.addBucket(name); name = "" }, enabled = name.isNotBlank()) { Text("Add bucket") } }
-            val planEntries = plans.map { PlanEntry(it.bucketId, it.kind, it.value) }
-            item { Text("Plan totals: ${BucketMath.totalPercentBp(planEntries) / 100}% · Fixed ${Money.formatPaise(BucketMath.totalFixedPaise(planEntries))}") }
+            item { Text("Split template: ${BucketMath.totalPercentBp(planEntries) / 100}% · Fixed ${Money.formatPaise(BucketMath.totalFixedPaise(planEntries))}") }
             if (BucketMath.totalPercentBp(planEntries) > 10_000) {
                 item { Text("Plan percentages exceed 100%; entries will be capped in order.", color = MaterialTheme.colorScheme.error) }
             }
@@ -327,6 +359,7 @@ private fun BucketsScreen(viewModel: BucketsViewModel) {
                         TextButton(onClick = { viewModel.deleteBucket(status.bucket.id) }) { Text("Remove") }
                     }
                     Text("Balance ${Money.formatPaise(status.balancePaise)} · Available ${Money.formatPaise(available)}${if (status.reservedPaise > 0) " · Reserved ${Money.formatPaise(status.reservedPaise)}" else ""}", color = if (available < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                    Row { TextButton(onClick = { adjustmentBucket = status }) { Text("Add / Take out") }; TextButton(onClick = { moveFrom = status }) { Text("Move") }; TextButton(onClick = { historyBucket = status }) { Text("History") } }
                     bucketPlans.forEach { entry ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(if (entry.kind == "PERCENT") "${entry.value / 100}%" else Money.formatPaise(entry.value))
@@ -338,8 +371,8 @@ private fun BucketsScreen(viewModel: BucketsViewModel) {
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Split order", style = MaterialTheme.typography.titleMedium)
-                    Text("When the plan asks for more than the salary has, entries higher in this list are filled first.")
+                    Text("Split template order", style = MaterialTheme.typography.titleMedium)
+                    Text("When the template asks for more than an amount has, entries higher in this list are filled first.")
                     plans.forEachIndexed { index, entry ->
                         val bucketName = statuses.firstOrNull { it.bucket.id == entry.bucketId }?.bucket?.name ?: "Deleted bucket"
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -354,6 +387,62 @@ private fun BucketsScreen(viewModel: BucketsViewModel) {
             }
         }
     }
+    splitSource?.let { source -> SplitEditorDialog("Split ${Money.formatPaise(source.amountPaise)}", source.amountPaise, statuses.map { it.bucket }, planEntries, onDismiss = { splitSource = null }, onApply = { lines -> viewModel.applySplit(source.id, source.amountPaise, lines); splitSource = null }) }
+    unallocatedSplitAmount?.let { amount -> SplitEditorDialog("Split ${Money.formatPaise(amount)}", amount, statuses.map { it.bucket }, planEntries, onDismiss = { unallocatedSplitAmount = null }, onApply = { lines -> viewModel.applySplit(null, amount, lines); unallocatedSplitAmount = null }) }
+    if (showAmountSplit) AlertDialog(onDismissRequest = { showAmountSplit = false }, title = { Text("Split an amount") }, text = { OutlinedTextField(splitAmountText, { splitAmountText = it }, label = { Text("Amount ₹") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)) }, confirmButton = { TextButton(onClick = { Money.parseToPaise(splitAmountText)?.takeIf { it > 0 }?.let { unallocatedSplitAmount = it; showAmountSplit = false; splitAmountText = "" } }) { Text("Continue") } }, dismissButton = { TextButton(onClick = { showAmountSplit = false }) { Text("Cancel") } })
+    adjustmentBucket?.let { status -> AdjustmentDialog(status.bucket.name, onDismiss = { adjustmentBucket = null }) { signed, note -> viewModel.adjust(status.bucket.id, signed, note); adjustmentBucket = null } }
+    moveFrom?.let { from -> MoveDialog(from.bucket.name, statuses.filter { it.bucket.id != from.bucket.id }.map { it.bucket }, onDismiss = { moveFrom = null }) { to, amount -> viewModel.move(from.bucket.id, to, amount); moveFrom = null } }
+    historyBucket?.let { status -> BucketHistoryDialog(status.bucket.name, entries.filter { it.bucketId == status.bucket.id }, onDismiss = { historyBucket = null }, onDelete = viewModel::deleteEntry) }
+}
+
+@Composable
+private fun MoneyMapCard(map: com.rajnikant.moneybrain.summary.MoneyMap, accounts: List<AccountEntity>, statuses: List<com.rajnikant.moneybrain.summary.BucketStatus>) {
+    Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text("Money map", style = MaterialTheme.typography.titleMedium)
+        Text(map.totalPaise?.let { "Total balance ${Money.formatPaise(it)}" } ?: "Set your balances", fontWeight = FontWeight.Medium)
+        accounts.forEach { account -> Text("${account.name} · ${map.accountBalances[account.id]?.let(Money::formatPaise) ?: "Set balance"}") }
+        Text("Distribution", fontWeight = FontWeight.Medium)
+        statuses.forEach { status -> Text("${status.bucket.name} ${Money.formatPaise(status.balancePaise)}${if (status.reservedPaise > 0) " · of which ${Money.formatPaise(status.reservedPaise)} reserved" else ""}", color = if (status.balancePaise < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) }
+        if (map.unallocatedPaise == null) Text("Unallocated — · Set every account balance to see this.")
+        else Text("Unallocated ${Money.formatPaise(map.unallocatedPaise)}", color = if (map.unallocatedPaise < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+    } }
+}
+
+@Composable
+private fun SplitEditorDialog(title: String, amount: Long, buckets: List<com.rajnikant.moneybrain.data.BucketEntity>, plan: List<PlanEntry>, onDismiss: () -> Unit, onApply: (List<SplitLine>) -> Unit) {
+    val prefills = remember(amount, plan) { BucketMath.split(amount, plan).lines }
+    var texts by remember(amount, plan) { mutableStateOf(prefills.mapIndexed { index, line -> index to Money.formatPaise(line.amountPaise).removePrefix("₹") }.toMap()) }
+    val lines = prefills.mapIndexed { index, line -> SplitLine(line.bucketId, Money.parseToPaise(texts[index].orEmpty()) ?: -1L) }
+    val validation = runCatching { BucketLedger.validateSplit(amount, lines) }.getOrNull()
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (prefills.isEmpty()) Text("Add split-template entries first.")
+        prefills.forEachIndexed { index, line -> OutlinedTextField(texts[index].orEmpty(), { texts = texts + (index to it) }, label = { Text(buckets.firstOrNull { it.id == line.bucketId }?.name ?: "Bucket") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true) }
+        when (validation) {
+            is SplitValidation.Ok -> Text("${Money.formatPaise(validation.leftoverPaise)} left unallocated")
+            is SplitValidation.NegativeLine -> Text("Amounts cannot be negative", color = MaterialTheme.colorScheme.error)
+            is SplitValidation.OverAmount -> Text("Over by ${Money.formatPaise(validation.overByPaise)}", color = MaterialTheme.colorScheme.error)
+            null -> Text("Enter valid amounts", color = MaterialTheme.colorScheme.error)
+        }
+    } }, confirmButton = { TextButton(onClick = { onApply(lines) }, enabled = validation is SplitValidation.Ok && lines.any { it.amountPaise > 0 }) { Text("Apply") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+@Composable
+private fun AdjustmentDialog(bucketName: String, onDismiss: () -> Unit, onSave: (Long, String?) -> Unit) {
+    var amount by remember { mutableStateOf("") }; var note by remember { mutableStateOf("") }; var takeOut by remember { mutableStateOf(false) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (takeOut) "Take out of $bucketName" else "Add to $bucketName") }, text = { Column { Row { FilterChip(!takeOut, { takeOut = false }, { Text("Add") }); FilterChip(takeOut, { takeOut = true }, { Text("Take out") }) }; OutlinedTextField(amount, { amount = it }, label = { Text("Amount ₹") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)); OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") }) } }, confirmButton = { TextButton(onClick = { Money.parseToPaise(amount)?.takeIf { it > 0 }?.let { onSave(if (takeOut) -it else it, note.ifBlank { null }) } }) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+@Composable
+private fun MoveDialog(fromName: String, targets: List<com.rajnikant.moneybrain.data.BucketEntity>, onDismiss: () -> Unit, onMove: (Long, Long) -> Unit) {
+    var targetId by remember { mutableStateOf(targets.firstOrNull()?.id) }; var amount by remember { mutableStateOf("") }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Move from $fromName") }, text = { Column { targets.forEach { target -> FilterChip(targetId == target.id, { targetId = target.id }, { Text(target.name) }) }; OutlinedTextField(amount, { amount = it }, label = { Text("Amount ₹") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)) } }, confirmButton = { TextButton(onClick = { val target = targetId; val parsed = Money.parseToPaise(amount); if (target != null && parsed != null && parsed > 0) onMove(target, parsed) }) { Text("Move") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+@Composable
+private fun BucketHistoryDialog(bucketName: String, entries: List<com.rajnikant.moneybrain.data.BucketEntryEntity>, onDismiss: () -> Unit, onDelete: (Long) -> Unit) {
+    var deleteId by remember { mutableStateOf<Long?>(null) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("$bucketName history") }, text = { LazyColumn { items(entries, key = { it.id }) { entry -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("${if (entry.amountPaise >= 0) "+" else "−"}${Money.formatPaise(kotlin.math.abs(entry.amountPaise))} · ${entry.kind.lowercase()}"); TextButton(onClick = { deleteId = entry.id }) { Text("Delete") } } } } }, confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } })
+    deleteId?.let { id -> AlertDialog(onDismissRequest = { deleteId = null }, title = { Text("Delete entry?") }, text = { Text(entries.firstOrNull { it.id == id }?.counterpartEntryId?.let { "This move's other leg will also be deleted." } ?: "This entry will be deleted.") }, confirmButton = { TextButton(onClick = { onDelete(id); deleteId = null }) { Text("Delete") } }, dismissButton = { TextButton(onClick = { deleteId = null }) { Text("Cancel") } }) }
 }
 
 @Composable
@@ -596,8 +685,11 @@ private fun TransactionEditorScreen(
     val people by viewModel.people.collectAsState(initial = emptyList())
     val trips by viewModel.trips.collectAsState(initial = emptyList())
     val state = viewModel.state
+    val plans by viewModel.plans.collectAsState(initial = emptyList())
+    val alreadyBucketSplit by (viewModel.sourceAlreadySplit ?: flowOf(false)).collectAsState(initial = false)
     val focusRequester = remember { FocusRequester() }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showBucketSplit by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -615,6 +707,17 @@ private fun TransactionEditorScreen(
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirmation = false }) { Text("Cancel") }
             },
+        )
+    }
+    if (showBucketSplit) {
+        val amount = viewModel.validAmount()
+        if (amount != null) SplitEditorDialog(
+            "Split ${Money.formatPaise(amount)}",
+            amount,
+            buckets,
+            plans.map { PlanEntry(it.bucketId, it.kind, it.value) },
+            onDismiss = { showBucketSplit = false },
+            onApply = { lines -> viewModel.applyBucketSplit(lines); showBucketSplit = false },
         )
     }
 
@@ -651,6 +754,10 @@ private fun TransactionEditorScreen(
             }
         }
         item { BucketPicker(buckets, state.bucketId) { id -> viewModel.update { copy(bucketId = id) } } }
+        if (isEdit && state.direction == "IN") item {
+            if (alreadyBucketSplit) Text("Already split", style = MaterialTheme.typography.bodyMedium)
+            else TextButton(onClick = { showBucketSplit = true }) { Text("Split into buckets…") }
+        }
         if (state.direction == "OUT") item { TripPicker(trips, state.tripId) { id -> viewModel.update { copy(tripId = id) } } }
         item {
             Text("Split with people", fontWeight = FontWeight.Medium)
