@@ -139,3 +139,8 @@ ALTER TABLE transactions ADD COLUMN tripId INTEGER;  -- plain column, NO Room Fo
 - `./gradlew test` and debug build pass with architect-owned files unmodified.
 - Remaining before Phase 5 completion: People and Trips screens, transaction split/editor UI,
   manual trip assignment, and their smoke checks. Phase remains open.
+- Continued implementation: Settings now links to People and Trips. People shows the signed-ledger
+  balance direction and net summary and allows adding people. Trips supports start/stop and
+  prevents a second active trip. Tests and debug build pass; the APK was installed over live data.
+- Remaining: person detail lending/owing/settlement flows, editor split and trip pickers, and trip
+  details/manual filing UI. Phase remains open.
