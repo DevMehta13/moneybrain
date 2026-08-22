@@ -79,3 +79,6 @@ BoB/HDFC parsing templates. No live capture yet, no database writes, nothing aut
 - Verification after the architect's bank-template update: `./gradlew test` passed,
   including the unmodified `BankTemplatesTest.kt`; the debug APK built successfully,
   installed over the existing phone app, and launched.
+- Verification after the HDFC UPI-credit and NEFT-template update: `./gradlew test` passed
+  with all six new architect-owned test cases; the debug APK built, installed, and launched
+  on the connected phone.
