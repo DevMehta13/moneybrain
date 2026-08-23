@@ -741,18 +741,12 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onTransaction: (Long) -
     val entries by viewModel.entries.collectAsState(initial = emptyList())
     val filters by viewModel.filterState.collectAsState()
     val accounts by viewModel.accounts.collectAsState(initial = emptyList()); val categories by viewModel.categories.collectAsState(initial = emptyList()); val buckets by viewModel.buckets.collectAsState(initial = emptyList()); val trips by viewModel.trips.collectAsState(initial = emptyList()); val people by viewModel.people.collectAsState(initial = emptyList())
-    if (entries.isEmpty()) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-        ) {
-            Text("No transactions yet", style = MaterialTheme.typography.titleMedium)
-            Text("Tap + to add a cash expense.")
-        }
-        return
-    }
-
+    var showFilters by remember { mutableStateOf(false) }
+    val activeFilterCount = listOfNotNull(
+        filters.accountId, filters.categoryId, filters.bucketId, filters.tripId, filters.personId,
+        filters.direction,
+    ).size + if (filters.uncategorised) 1 else 0
+    val hasActiveFilters = activeFilterCount > 0 || filters.search.isNotBlank()
     val m = mb()
     val dayTotals = remember(entries) {
         entries.filterIsInstance<TimelineEntry.Row>()
@@ -761,50 +755,70 @@ private fun TimelineScreen(viewModel: TimelineViewModel, onTransaction: (Long) -
                 rows.sumOf { row -> if (row.item.transaction.direction == "IN") row.item.transaction.amountPaise else -row.item.transaction.amountPaise }
             }
     }
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item {
-            Column(Modifier.fillMaxWidth().padding(start = 20.dp, top = 14.dp, end = 20.dp)) {
-                Text("Timeline", style = MaterialTheme.typography.headlineSmall)
-                OutlinedTextField(filters.search, { value -> viewModel.updateFilters { it.copy(search = value) } }, placeholder = { Text("Search merchant, note, person…", color = m.faint, fontSize = 13.sp) }, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), singleLine = true)
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 10.dp)) {
+            Text("Timeline", style = MaterialTheme.typography.headlineSmall)
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(filters.search, { value -> viewModel.updateFilters { it.copy(search = value) } }, placeholder = { Text("Search merchant, note, person…", color = m.faint, fontSize = 13.sp) }, modifier = Modifier.weight(1f), singleLine = true)
+                Button(onClick = { showFilters = true }) { Text(if (activeFilterCount == 0) "FILTER" else "FILTER $activeFilterCount") }
             }
+            if (hasActiveFilters) TextButton(onClick = { viewModel.updateFilters { com.rajnikant.moneybrain.viewmodel.TimelineFilters() } }) { Text("Clear filters") }
         }
-        item { androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(filters.uncategorised, { viewModel.updateFilters { it.copy(uncategorised = !it.uncategorised) } }, label = { Text("UNCATEGORISED") }); listOf("OUT", "IN").forEach { direction -> FilterChip(filters.direction == direction, { viewModel.updateFilters { it.copy(direction = if (it.direction == direction) null else direction) } }, label = { Text(direction) }) } } }
-        item { FilterRow("Account", accounts.map { it.id to it.name }, filters.accountId) { id -> viewModel.updateFilters { it.copy(accountId = id) } }; FilterRow("Category", categories.map { it.id to it.name }, filters.categoryId) { id -> viewModel.updateFilters { it.copy(categoryId = id) } }; FilterRow("Bucket", buckets.map { it.id to it.name }, filters.bucketId) { id -> viewModel.updateFilters { it.copy(bucketId = id) } }; FilterRow("Trip", trips.map { it.id to it.name }, filters.tripId) { id -> viewModel.updateFilters { it.copy(tripId = id) } }; FilterRow("Person", people.map { it.id to it.name }, filters.personId) { id -> viewModel.updateFilters { it.copy(personId = id) } } }
-        item { SectionRule(Modifier.padding(top = 12.dp)) }
-        itemsIndexed(
-            items = entries,
-            key = { _, entry ->
+        if (entries.isEmpty()) {
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                Text(if (hasActiveFilters) "No matching transactions" else "No transactions yet", style = MaterialTheme.typography.titleMedium)
+                Text(if (hasActiveFilters) "Clear filters to see every transaction." else "Tap + to add a cash expense.")
+            }
+        } else LazyColumn(modifier = Modifier.weight(1f)) {
+            item { SectionRule() }
+            itemsIndexed(
+                items = entries,
+                key = { _, entry ->
+                    when (entry) {
+                        is TimelineEntry.DayHeader -> "h-${entry.date}"
+                        is TimelineEntry.Row -> "t-${entry.item.transaction.id}"
+                    }
+                }
+            ) { index, entry ->
                 when (entry) {
-                    is TimelineEntry.DayHeader -> "h-${entry.date}"
-                    is TimelineEntry.Row -> "t-${entry.item.transaction.id}"
-                }
-            },
-        ) { index, entry ->
-            when (entry) {
-                is TimelineEntry.DayHeader -> {
-                    if (index > 0) SectionRule()
-                    val dayText = entry.date.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)).uppercase(Locale.ENGLISH)
-                    val label = when (entry.date) {
-                        LocalDate.now() -> "TODAY · $dayText"
-                        LocalDate.now().minusDays(1) -> "YESTERDAY · $dayText"
-                        else -> entry.date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)).uppercase(Locale.ENGLISH)
+                    is TimelineEntry.DayHeader -> {
+                        if (index > 0) SectionRule()
+                        val dayText = entry.date.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)).uppercase(Locale.ENGLISH)
+                        val label = when (entry.date) {
+                            LocalDate.now() -> "TODAY · $dayText"
+                            LocalDate.now().minusDays(1) -> "YESTERDAY · $dayText"
+                            else -> entry.date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)).uppercase(Locale.ENGLISH)
+                        }
+                        val total = dayTotals[entry.date] ?: 0L
+                        Row(Modifier.fillMaxWidth().padding(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(label, color = m.muted, style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.08.em))
+                            Text(if (total >= 0) "+${Money.formatPaise(total)}" else "−${Money.formatPaise(-total)}", color = m.muted, style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.02.em))
+                        }
                     }
-                    val total = dayTotals[entry.date] ?: 0L
-                    Row(
-                        Modifier.fillMaxWidth().padding(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(label, color = m.muted, style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.08.em))
-                        Text(if (total >= 0) "+${Money.formatPaise(total)}" else "−${Money.formatPaise(-total)}", color = m.muted, style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.02.em))
-                    }
-                }
-                is TimelineEntry.Row -> {
-                    val item = entry.item
-                    TransactionRow(item, onClick = { onTransaction(item.transaction.id) })
+                    is TimelineEntry.Row -> TransactionRow(entry.item, onClick = { onTransaction(entry.item.transaction.id) })
                 }
             }
         }
     }
+    if (showFilters) AlertDialog(
+        onDismissRequest = { showFilters = false },
+        title = { Text("Filters") },
+        text = {
+            Column(Modifier.height(470.dp).verticalScroll(rememberScrollState())) {
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(filters.uncategorised, { viewModel.updateFilters { it.copy(uncategorised = !it.uncategorised) } }, label = { Text("UNCATEGORISED") })
+                    listOf("OUT", "IN").forEach { direction -> FilterChip(filters.direction == direction, { viewModel.updateFilters { it.copy(direction = if (it.direction == direction) null else direction) } }, label = { Text(direction) }) }
+                }
+                FilterRow("Account", accounts.map { it.id to it.name }, filters.accountId) { id -> viewModel.updateFilters { it.copy(accountId = id) } }
+                FilterRow("Category", categories.map { it.id to it.name }, filters.categoryId) { id -> viewModel.updateFilters { it.copy(categoryId = id) } }
+                FilterRow("Bucket", buckets.map { it.id to it.name }, filters.bucketId) { id -> viewModel.updateFilters { it.copy(bucketId = id) } }
+                FilterRow("Trip", trips.map { it.id to it.name }, filters.tripId) { id -> viewModel.updateFilters { it.copy(tripId = id) } }
+                FilterRow("Person", people.map { it.id to it.name }, filters.personId) { id -> viewModel.updateFilters { it.copy(personId = id) } }
+            }
+        },
+        confirmButton = { TextButton(onClick = { showFilters = false }) { Text("Done") } },
+        dismissButton = { TextButton(onClick = { viewModel.updateFilters { com.rajnikant.moneybrain.viewmodel.TimelineFilters() } }) { Text("Clear all") } },
+    )
 }
 
 @Composable private fun FilterRow(label: String, options: List<Pair<Long, String>>, selected: Long?, onSelect: (Long?) -> Unit) {
